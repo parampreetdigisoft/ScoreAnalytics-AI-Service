@@ -7,9 +7,9 @@ import sqlparse
 from typing import Dict
 import logging
 
-from app.services.database_service import db_service
+from app.services.common.database_service import db_service
 from app.config import settings
-from app.services.llm_factory import llm_factory
+from app.services.common.llm_factory import llm_factory
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 

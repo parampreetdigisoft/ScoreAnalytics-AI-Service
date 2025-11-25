@@ -1,17 +1,19 @@
 """
 Main FastAPI Application
 """
+import os
+import logging
+from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import logging
 import uvicorn
 
 from app.config import settings
 from app.services.text_to_sql_service import text_to_sql_service
 from app.services.data_analyzer_service import data_analyzer_service
-from app.services.database_service import db_service
-
+from app.services.common.database_service import db_service
+from app.services.common.llm_Execution_service import llm_Execution_service
 # Import routers
 from app.routers.query_router import router as query_router
 from app.routers.analysis_router import router as analysis_router
@@ -20,10 +22,39 @@ from app.routers.analysis_router import router as analysis_router
 # from app.routers.summarizer import router as summarizer_router
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+
+# Get your project directory (folder where this file is located)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Create Logs folder inside your project (if not exists)
+LOG_DIR = os.path.join(BASE_DIR, "Logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# Full path: <your_project>/Logs/error.log
+LOG_FILE = os.path.join(LOG_DIR, "error.log")
+
+# Configure rotating error log
+handler = RotatingFileHandler(
+    LOG_FILE,
+    maxBytes=1_000_000,   # 1 MB
+    backupCount=3
 )
+handler.setLevel(logging.ERROR)
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
+handler.setFormatter(formatter)
+
+# Create logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
+logger.addHandler(handler)
+
+# logging.basicConfig(
+#     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# )
+# logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -54,6 +85,10 @@ async def startup_event():
         db_connected = db_service.test_connection()
         if not db_connected:
             logger.warning("⚠️ Database connection failed - some features may not work")
+
+        # Initialize llm_Execution_service service
+        logger.info("Initializing llm_Execution_service service...")
+        await llm_Execution_service.initialize()
 
         # Initialize text-to-SQL service
         logger.info("Initializing Text-to-SQL service...")

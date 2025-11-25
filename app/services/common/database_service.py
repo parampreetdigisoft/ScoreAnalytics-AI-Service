@@ -167,7 +167,6 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"❌ Database connection failed: {e}")
             return False
-
     
     def read_table_data(
         self, 
@@ -304,12 +303,7 @@ class DatabaseService:
             logger.error(f"Error getting row count: {e}")
             raise
     
-    def read_data_in_chunks(
-        self, 
-        table_name: str, 
-        chunk_size: int = 1000,
-        columns: Optional[List[str]] = None
-    ):
+    def read_data_in_chunks(self, table_name: str, chunk_size: int = 1000,columns: Optional[List[str]] = None):
         """
         Generator to read large tables in chunks
         
@@ -357,36 +351,39 @@ class DatabaseService:
             sample=True
         )
     
-    def get_distinct_values(
-        self, 
-        table_name: str, 
-        column: str,
-        limit: Optional[int] = None
-    ) -> List[Any]:
+    def get_view_data(self,view_name: str,where: Optional[str] = None,limit: Optional[int] = None ) -> pd.DataFrame:
         """
-        Get distinct values from a column
-        
+        Execute a SQL view with optional WHERE and LIMIT/TOP.
+
         Args:
-            table_name: Name of the table
-            column: Column name
-            limit: Maximum number of distinct values to return
-        
+            view_name: Name of the SQL view
+            where: SQL WHERE condition (e.g., "status = 'Active'")
+            limit: Max rows to return
+
         Returns:
-            List of distinct values
+            DataFrame containing the result
         """
-        query = f"SELECT DISTINCT {column} FROM {table_name}"
-        
+
+        # Base query
+        query = f"SELECT * FROM {view_name}"
+
+        # Add WHERE clause
+        if where:
+            query += f" WHERE {where}"
+
+        # Add TOP clause (for SQL Server)
         if limit:
-            query = f"SELECT DISTINCT TOP {limit} {column} FROM {table_name}"
-        
+            # Insert TOP n after SELECT
+            query = query.replace("SELECT", f"SELECT TOP {limit}", 1)
+
         try:
             with self.get_connection() as conn:
                 df = pd.read_sql(query, conn)
-            
-            return df[column].tolist()
-            
+
+            return df
+
         except Exception as e:
-            logger.error(f"Error getting distinct values: {e}")
+            logger.error(f"Error executing view '{view_name}': {e}")
             raise
 
 # Singleton instance

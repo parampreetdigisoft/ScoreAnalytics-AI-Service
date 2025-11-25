@@ -9,7 +9,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.services.database_service import db_service
+from app.services.common.database_service import db_service
 from app.services.text_to_sql_service import text_to_sql_service
 from app.config import settings
 

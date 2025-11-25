@@ -1,3 +1,15 @@
+
+# # Create virtual environment
+# python -m venv .venv
+
+# # Activate (Windows)
+# .venv\Scripts\activate
+
+# # Install dependencies
+# pip install -r requirements.txt
+
+
+
 # Core API Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
@@ -6,15 +18,16 @@ pydantic-core==2.41.5
 python-multipart==0.0.6
 python-dotenv==1.0.0
 
-# LangChain + Ollama
-langchain==0.3.7
-langchain-core==0.3.25
-langchain-community==0.3.2
-# LLM Provider Support  
-ollama==0.6.1
-langchain-ollama==0.2.1
-langchain-openai==0.2.8     
-    # OpenAI/OpenRouter support
+
+
+langchain==1.1.0
+langchain-core==1.1.0
+langchain-openai==1.1.0
+#langchain-ollama==1.0.0
+#langchain-groq==1.1.0
+langsmith==0.4.47
+
+
 
 # Text Processing
 nltk==3.8.1

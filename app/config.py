@@ -14,7 +14,7 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
     OPENAI = "openai"
     OPENROUTER = "openrouter"
-
+    GROK="grok"
 
 class Settings:
     # ---------------------------
@@ -60,6 +60,11 @@ class Settings:
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
     OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
+        # OpenAI Configuration
+    GROK_API_KEY: str = os.getenv("GROK_API_KEY", "")
+    GROK_MODEL: str = os.getenv("GROK_MODEL", "gpt-4o-mini")
+ 
+
 
     
     # ---------------------------
@@ -96,66 +101,4 @@ class Settings:
 
 
 settings = Settings()
-
-# """
-# Application Configuration (Optimized for Ollama)
-# """
-# from pathlib import Path
-# import os
-# from dotenv import load_dotenv
-
-# load_dotenv()
-
-# class Settings:
-#     # ---------------------------
-#     # API Configuration
-#     # ---------------------------
-#     API_HOST = os.getenv("API_HOST", "http://localhost")
-#     API_PORT = int(os.getenv("API_PORT", "8000"))
-#     API_RELOAD = os.getenv("API_RELOAD", "True").lower() == "true"
-    
-#     # ---------------------------
-#     # .NET API Integration
-#     # ---------------------------
-#     DOTNET_API_URL: str = "http://localhost:5000/api"
-    
-#     # ---------------------------
-#     # Database Configuration
-#     # ---------------------------
-#     DB_SERVER: str = "DESKTOP-I0TTFPS"
-#     DB_NAME: str = "AssessmentDB_new"
-#     DB_USE_WINDOWS_AUTH: bool = True
-    
-#     # ---------------------------
-#     # Ollama Model Configuration
-#     # ---------------------------
-#     # Choose which model you want Ollama to use
-#     # Options: "mistral", "llama3.1", "deepseek-coder", etc.
-#     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "mistral:latest")
-    
-#     # ---------------------------
-#     # Processing Settings
-#     # ---------------------------
-#     MAX_SUMMARY_LENGTH: int = 150
-#     MIN_SUMMARY_LENGTH: int = 50
-#     CHUNK_SIZE: int = 500
-#     CHUNK_OVERLAP: int = 50
-#     TOP_K_RESULTS: int = 5
-    
-#     # ---------------------------
-#     # Scoring
-#     # ---------------------------
-#     ANOMALY_THRESHOLD: int = 2
-    
-#     # ---------------------------
-#     # General Paths
-#     # ---------------------------
-#     BASE_DIR: Path = Path(__file__).parent.parent
-    
-#     class Config:
-#         env_file = ".env"
-#         case_sensitive = True
-
-# settings = Settings()
-
 
