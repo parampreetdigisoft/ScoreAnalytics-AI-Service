@@ -10,12 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.config import settings
-from app.services.text_to_sql_service import text_to_sql_service
-from app.services.data_analyzer_service import data_analyzer_service
 from app.services.common.database_service import db_service
-from app.services.common.llm_Execution_service import llm_Execution_service
 # Import routers
-from app.routers.analysis_router import router as analysis_router
 from app.routers.score_analysis_router import router as score_analysis_router
 # Add your other routers here
 # from app.routers.chat import router as chat_router
@@ -82,17 +78,9 @@ async def startup_event():
         if not db_connected:
             logger.warning("⚠️ Database connection failed - some features may not work")
 
-        # Initialize llm_Execution_service service
-        logger.info("Initializing llm_Execution_service service...")
-        await llm_Execution_service.initialize()
-
-        # Initialize text-to-SQL service
-        logger.info("Initializing Text-to-SQL service...")
-        await text_to_sql_service.initialize()
-
-        # Initialize text-to-SQL service
-        logger.info("Initializing data analyzer service...")
-        await data_analyzer_service.initialize()
+        # # Initialize text-to-SQL service
+        # logger.info("Initializing Text-to-SQL service...")
+        # await text_to_sql_service.initialize()
 
         logger.info("✅ All services initialized successfully!")
         logger.info(
@@ -118,7 +106,6 @@ app = FastAPI(
 
 
 # Include routers
-app.include_router(analysis_router)
 app.include_router(score_analysis_router)
 # Root Endpoint
 @app.get("/", summary="API Root")
@@ -126,7 +113,7 @@ async def root():
     return {
         "service": "Text-to-SQL API",
         "status": "running",
-        "model_in_use": settings.OLLAMA_MODEL,
+        "model_in_use": settings.LLM_PROVIDER,
         "routes": {
             "health_check": "/health",
             "documentation": f"http://{settings.API_HOST}:{settings.API_PORT}/docs",

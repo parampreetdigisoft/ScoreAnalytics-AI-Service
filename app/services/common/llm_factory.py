@@ -1,17 +1,11 @@
 """
 LLM Provider Factory - Abstract factory pattern for multiple LLM providers
 """
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
-import logging
-
 from langchain_core.language_models import BaseChatModel
-# from langchain_ollama import ChatOllama
-#from langchain_openai import ChatOpenAI
-
 from langchain_openai import ChatOpenAI
-from langchain_ollama import ChatOllama
-from langchain_groq import ChatGroq
 from app.config import settings, LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -29,26 +23,6 @@ class LLMProviderInterface(ABC):
     def get_model_name(self) -> str:
         """Get the model name being used"""
         pass
-
-
-class OllamaProvider(LLMProviderInterface):
-    """Ollama LLM Provider"""
-    
-    def get_llm(self, **kwargs) -> BaseChatModel:
-        model = kwargs.get("model", settings.OLLAMA_MODEL)
-        temperature = kwargs.get("temperature", settings.LLM_TEMPERATURE)
-        
-        logger.info(f"Initializing Ollama with model: {model}")
-        
-        return ChatOllama(
-            base_url=settings.OLLAMA_BASE_URL,
-            model=model,
-            temperature=temperature,
-            timeout=settings.OLLAMA_TIMEOUT,
-        )
-    
-    def get_model_name(self) -> str:
-        return settings.OLLAMA_MODEL
 
 class OpenAIProvider(LLMProviderInterface):
     """OpenAI LLM Provider"""
@@ -101,37 +75,12 @@ class OpenRouterProvider(LLMProviderInterface):
     def get_model_name(self) -> str:
         return settings.OPENROUTER_MODEL
 
-class GrokProvider(LLMProviderInterface):
-    """xAI Grok LLM Provider"""
-
-    def get_llm(self, **kwargs) -> BaseChatModel:
-        if not settings.GROK_API_KEY:
-            raise ValueError("GROK_API_KEY not configured")
-
-        model = kwargs.get("model", settings.GROK_MODEL)
-        temperature = kwargs.get("temperature", settings.LLM_TEMPERATURE)
-        max_tokens = kwargs.get("max_tokens", settings.LLM_MAX_TOKENS)
-
-        logger.info(f"Initializing Grok with model: {model}")
-
-        return ChatGroq(
-            api_key=settings.GROK_API_KEY,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-
-    def get_model_name(self) -> str:
-        return settings.GROK_MODEL
-    
 class LLMFactory:
     """Factory class to create LLM instances based on configuration"""
     
     _providers = {
-        LLMProvider.OLLAMA: OllamaProvider,
         LLMProvider.OPENAI: OpenAIProvider,
         LLMProvider.OPENROUTER: OpenRouterProvider,
-        LLMProvider.GROK: GrokProvider
     }
     
     @classmethod

@@ -11,10 +11,8 @@ load_dotenv()
 
 class LLMProvider(str, Enum):
     """Supported LLM Providers"""
-    OLLAMA = "ollama"
     OPENAI = "openai"
     OPENROUTER = "openrouter"
-    GROK="grok"
 
 class Settings:
     # ---------------------------
@@ -41,14 +39,8 @@ class Settings:
     # ---------------------------
     # LLM Provider Configuration
     # ---------------------------
-    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ollama")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai")
     
-
-
-    # Ollama Configuration
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "mistral:latest")
-    OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "300"))
     
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
@@ -59,10 +51,6 @@ class Settings:
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
     OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-    
-    # OpenAI Configuration
-    GROK_API_KEY: str = os.getenv("GROK_API_KEY", "")
-    GROK_MODEL: str = os.getenv("GROK_MODEL", "gpt-4o-mini")
  
 
     # ---------------------------
