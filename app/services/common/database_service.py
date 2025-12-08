@@ -386,5 +386,82 @@ class DatabaseService:
             logger.error(f"Error executing view '{view_name}': {e}")
             raise
 
+    def bulk_upsert_question_evaluations(self, rows: list[dict]):   
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Convert list of dicts → DataFrame → list of tuples
+            df = pd.DataFrame(rows)
+
+            records = list(df.itertuples(index=False, name=None))
+
+            # Create TVP-compatible structure
+            tvp = cursor.execute(
+                "{CALL usp_BulkUpsertPillarQuestionEvaluations (?)}",
+                (records,)
+            )
+            conn.commit()
+            
+    def bulk_upsert_pillar_evaluations(self, rows: list[dict], subRows: list[dict]):   
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # ✅ Ensure correct column order for TVP_AIPillarScore
+            score_df = pd.DataFrame(rows)[[
+                "CityID",
+                "PillarID",
+                "Year",
+                "AIScore",
+                "AIProgress",
+                "EvaluatorScore",
+                "Discrepancy",
+                "ConfidenceLevel",
+                "EvidenceSummary",
+                "RedFlags",
+                "GeographicEquityNote",
+                "InstitutionalAssessment",
+                "DataGapAnalysis"
+            ]]
+
+            score_records = list(score_df.itertuples(index=False, name=None))
+
+            # ✅ Ensure correct column order for TVP_DataSourceCitation
+            source_df = pd.DataFrame(subRows)[[
+                "CityID",
+                "DataYear",
+                "PillarID",
+                "SourceType",
+                "SourceName",
+                "SourceURL",
+                "DataExtract",
+                "TrustLevel"
+            ]]
+
+            source_records = list(source_df.itertuples(index=False, name=None))
+
+            # ✅ CORRECT stored procedure call (TWO parameters)
+            cursor.execute(
+                "{CALL BulkUpsertCityPillarEvaluations (?, ?)}",
+                (score_records, source_records)
+            )
+
+            conn.commit()
+
+    def bulk_upsert_city_evaluations(self, rows: list[dict]):   
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Convert list of dicts → DataFrame → list of tuples
+            df = pd.DataFrame(rows)
+
+            records = list(df.itertuples(index=False, name=None))
+
+            # Create TVP-compatible structure
+            tvp = cursor.execute(
+                "{CALL SP_AIBulkUpsertCityEvaluations (?)}",
+                (records,)
+            )
+            conn.commit()
+
 # Singleton instance
 db_service = DatabaseService()

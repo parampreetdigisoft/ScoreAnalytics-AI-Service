@@ -15,8 +15,8 @@ from app.services.data_analyzer_service import data_analyzer_service
 from app.services.common.database_service import db_service
 from app.services.common.llm_Execution_service import llm_Execution_service
 # Import routers
-from app.routers.query_router import router as query_router
 from app.routers.analysis_router import router as analysis_router
+from app.routers.score_analysis_router import router as score_analysis_router
 # Add your other routers here
 # from app.routers.chat import router as chat_router
 # from app.routers.summarizer import router as summarizer_router
@@ -51,10 +51,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 logger.addHandler(handler)
 
-# logging.basicConfig(
-#     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-# )
-# logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -122,8 +118,8 @@ app = FastAPI(
 
 
 # Include routers
-app.include_router(query_router)
 app.include_router(analysis_router)
+app.include_router(score_analysis_router)
 # Root Endpoint
 @app.get("/", summary="API Root")
 async def root():

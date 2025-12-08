@@ -50,7 +50,6 @@ class OllamaProvider(LLMProviderInterface):
     def get_model_name(self) -> str:
         return settings.OLLAMA_MODEL
 
-
 class OpenAIProvider(LLMProviderInterface):
     """OpenAI LLM Provider"""
     
@@ -73,7 +72,6 @@ class OpenAIProvider(LLMProviderInterface):
     
     def get_model_name(self) -> str:
         return settings.OPENAI_MODEL
-
 
 class OpenRouterProvider(LLMProviderInterface):
     """OpenRouter LLM Provider (uses OpenAI-compatible API)"""

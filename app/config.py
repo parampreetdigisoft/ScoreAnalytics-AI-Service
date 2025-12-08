@@ -60,13 +60,11 @@ class Settings:
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
     OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
-        # OpenAI Configuration
+    # OpenAI Configuration
     GROK_API_KEY: str = os.getenv("GROK_API_KEY", "")
     GROK_MODEL: str = os.getenv("GROK_MODEL", "gpt-4o-mini")
  
 
-
-    
     # ---------------------------
     # Data Analysis Configuration
     # ---------------------------
@@ -83,7 +81,7 @@ class Settings:
     CHUNK_OVERLAP: int = 50
     TOP_K_RESULTS: int = 5
     LLM_TEMPERATURE: float = 0.1
-    LLM_MAX_TOKENS: int = 2000
+    LLM_MAX_TOKENS: int = 4000
     
     # ---------------------------
     # Scoring
