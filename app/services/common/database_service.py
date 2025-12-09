@@ -397,7 +397,7 @@ class DatabaseService:
 
             # Create TVP-compatible structure
             tvp = cursor.execute(
-                "{CALL usp_BulkUpsertPillarQuestionEvaluations (?)}",
+                "{CALL usp_AiBulkUpsertPillarQuestionEvaluations (?)}",
                 (records,)
             )
             conn.commit()
@@ -441,7 +441,7 @@ class DatabaseService:
 
             # ✅ CORRECT stored procedure call (TWO parameters)
             cursor.execute(
-                "{CALL BulkUpsertCityPillarEvaluations (?, ?)}",
+                "{CALL usp_AiBulkUpsertCityPillarEvaluations (?, ?)}",
                 (score_records, source_records)
             )
 
@@ -458,7 +458,7 @@ class DatabaseService:
 
             # Create TVP-compatible structure
             tvp = cursor.execute(
-                "{CALL SP_AIBulkUpsertCityEvaluations (?)}",
+                "{CALL usp_AiBulkUpsertCityEvaluations (?)}",
                 (records,)
             )
             conn.commit()

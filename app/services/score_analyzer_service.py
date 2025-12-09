@@ -153,7 +153,7 @@ class ScoreAnalyzerService:
         """
         try:
             df = db_service.get_view_data(
-                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}", 12
+                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}"
             )
             
             if not len(df):
