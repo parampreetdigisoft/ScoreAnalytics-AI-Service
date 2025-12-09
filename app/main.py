@@ -1,56 +1,43 @@
 """
-Main FastAPI Application
+Main FastAPI Application with Database Logging
 """
+
 import os
 import logging
-from logging.handlers import RotatingFileHandler
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
 
 from app.config import settings
 from app.services.common.database_service import db_service
+from app.services.common.db_logger_service import db_logger_service
+
 # Import routers
 from app.routers.score_analysis_router import router as score_analysis_router
-# Add your other routers here
-# from app.routers.chat import router as chat_router
-# from app.routers.summarizer import router as summarizer_router
-
-# Configure logging
 
 
-# Get your project directory (folder where this file is located)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Create Logs folder inside your project (if not exists)
-LOG_DIR = os.path.join(BASE_DIR, "Logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-
-# Full path: <your_project>/Logs/error.log
-LOG_FILE = os.path.join(LOG_DIR, "error.log")
-
-# Configure rotating error log
-handler = RotatingFileHandler(
-    LOG_FILE,
-    maxBytes=1_000_000,   # 1 MB
-    backupCount=3
-)
-handler.setLevel(logging.ERROR)
-formatter = logging.Formatter(
-    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
-handler.setFormatter(formatter)
-
-# Create logger
+# Configure logging to database
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
-logger.addHandler(handler)
+
+# Add database handler
+db_handler = db_logger_service.get_handler()
+db_handler.setLevel(logging.ERROR)
+formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+db_handler.setFormatter(formatter)
+logger.addHandler(db_handler)
+
+# Also configure root logger to use database
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(db_handler)
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI Microservice API",
+    title="Assessment AI Service",
     description="Text-to-SQL and NLP Processing API",
     version="1.0.0",
 )
@@ -65,22 +52,55 @@ app.add_middleware(
 )
 
 
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch all unhandled exceptions and log them to database
+    """
+    logger.error(
+        f"Unhandled exception at {request.url.path}",
+        exc_info=exc,
+        extra={
+            "method": request.method,
+            "url": str(request.url),
+            "client": request.client.host if request.client else "unknown"
+        }
+    )
+    
+    # Also use direct service call for critical errors
+    db_logger_service.log_exception(
+        "ERROR",
+        f"Unhandled exception at {request.method} {request.url.path}",
+        exc
+    )
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "message": str(exc),
+            "path": request.url.path
+        }
+    )
+
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
     logger.info("🚀 Starting AI Microservice...")
-
+    
     try:
         # Test database connection
         logger.info("Testing database connection...")
         db_connected = db_service.test_connection()
+        
         if not db_connected:
             logger.warning("⚠️ Database connection failed - some features may not work")
-
-        # # Initialize text-to-SQL service
-        # logger.info("Initializing Text-to-SQL service...")
-        # await text_to_sql_service.initialize()
+            db_logger_service.log_message(
+                "WARNING",
+                "Database connection failed during startup"
+            )
 
         logger.info("✅ All services initialized successfully!")
         logger.info(
@@ -88,7 +108,8 @@ async def startup_event():
         )
 
     except Exception as e:
-        logger.error(f"❌ Startup failed: {e}")
+        logger.error(f"❌ Startup failed: {e}", exc_info=True)
+        db_logger_service.log_exception("CRITICAL", "Application startup failed", e)
         raise
 
 
@@ -98,20 +119,15 @@ async def shutdown_event():
     logger.info("Shutting down AI Microservice...")
 
 
-app = FastAPI(
-    title="Assessment AI Service",
-    version="1.0.0",
-    description="Convert natural language to SQL using Mistral (via Ollama) and execute against SQL Server.",
-)
-
-
 # Include routers
 app.include_router(score_analysis_router)
+
+
 # Root Endpoint
 @app.get("/", summary="API Root")
 async def root():
     return {
-        "service": "Text-to-SQL API",
+        "service": "Assessment AI Service",
         "status": "running",
         "model_in_use": settings.LLM_PROVIDER,
         "routes": {
@@ -127,7 +143,6 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
-        "ollama_model": settings.OLLAMA_MODEL,
         "database": settings.DB_NAME,
     }
 

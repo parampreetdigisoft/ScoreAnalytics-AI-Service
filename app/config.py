@@ -25,7 +25,7 @@ class Settings:
     # ---------------------------
     # .NET API Integration
     # ---------------------------
-    DOTNET_API_URL: str = os.getenv("DOTNET_API_URL", "http://localhost:5000/api")
+    DOTNET_API_URL: str = os.getenv("DOTNET_API_URL", "https://api.veridianurbansystems.com")
     
     # ---------------------------
     # Database Configuration
