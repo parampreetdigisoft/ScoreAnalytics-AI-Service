@@ -386,22 +386,47 @@ class DatabaseService:
             logger.error(f"Error executing view '{view_name}': {e}")
             raise
 
-    def bulk_upsert_question_evaluations(self, rows: list[dict]):   
+
+    def bulk_upsert_question_evaluations(self, rows: list[dict]):
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Convert list of dicts → DataFrame → list of tuples
-            df = pd.DataFrame(rows)
+            # define correct SQL column order for TVP
+            col_order = [
+                "CityID",
+                "PillarID",
+                "QuestionID",
+                "Year",
+                "AIScore",
+                "AIProgress",
+                "EvaluatorProgress",
+                "Discrepancy",
+                "ConfidenceLevel",
+                "DataSourcesUsed",
+                "EvidenceSummary",
+                "RedFlags",
+                "GeographicEquityNote",
+                "SourceType",
+                "SourceName",
+                "SourceURL",
+                "SourceDataYear",
+                "SourceDataExtract",
+                "SourceTrustLevel"
+            ]
 
+            # Force this order
+            df = pd.DataFrame(rows)[col_order]
+
+            # Convert rows → tuples in correct order
             records = list(df.itertuples(index=False, name=None))
 
-            # Create TVP-compatible structure
-            tvp = cursor.execute(
+            cursor.execute(
                 "{CALL usp_AiBulkUpsertPillarQuestionEvaluations (?)}",
                 (records,)
             )
+
             conn.commit()
-            
+        
     def bulk_upsert_pillar_evaluations(self, rows: list[dict], subRows: list[dict]):   
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -413,7 +438,7 @@ class DatabaseService:
                 "Year",
                 "AIScore",
                 "AIProgress",
-                "EvaluatorScore",
+                "EvaluatorProgress",
                 "Discrepancy",
                 "ConfidenceLevel",
                 "EvidenceSummary",
@@ -448,19 +473,39 @@ class DatabaseService:
             conn.commit()
 
     def bulk_upsert_city_evaluations(self, rows: list[dict]):   
+        
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Convert list of dicts → DataFrame → list of tuples
-            df = pd.DataFrame(rows)
+            # define correct SQL column order for TVP
+            col_order = [
+                "CityID",
+                "Year",
+                "AIScore",
+                "AIProgress",
+                "EvaluatorProgress",
+                "Discrepancy",
+                "ConfidenceLevel",
+                "EvidenceSummary",
+                "CrossPillarPatterns",
+                "InstitutionalCapacity",
+                "EquityAssessment",
+                "SustainabilityOutlook",
+                "StrategicRecommendations",
+                "DataTransparencyNote"
+            ]
 
+            # Force this order
+            df = pd.DataFrame(rows)[col_order]
+
+            # Convert rows → tuples in correct order
             records = list(df.itertuples(index=False, name=None))
 
-            # Create TVP-compatible structure
-            tvp = cursor.execute(
+            cursor.execute(
                 "{CALL usp_AiBulkUpsertCityEvaluations (?)}",
                 (records,)
             )
+
             conn.commit()
 
 # Singleton instance

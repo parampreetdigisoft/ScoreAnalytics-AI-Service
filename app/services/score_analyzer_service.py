@@ -1,7 +1,7 @@
 """
 Score analyzer service - LLM-powered analysis with database exception logging
 """
-
+import math
 import logging
 from typing import Any, Optional
 from app.services.common.database_service import db_service
@@ -18,13 +18,76 @@ class ScoreAnalyzerService:
     def __init__(self):
         self.db_service = db_service
 
+    def to_float_safe(self, value):
+        if value is None:
+            return float(0.0)
+
+        if isinstance(value, float):
+            # Convert NaN/inf to None
+            if math.isnan(value) or math.isinf(value):
+                return float(0.0)
+            return round(value, 2)
+
+        if isinstance(value, int):
+            return float(value)
+
+        if isinstance(value, str):
+            s = value.strip().lower()
+
+            # Empty or null-like
+            if s in ("", "null", "none", "nan", "inf", "-inf", "infinity", "-infinity"):
+                return float(0.0)
+
+            # Remove commas like "1,234.56"
+            s = s.replace(",", "")
+
+            try:
+                val = float(s)
+                if math.isnan(val) or math.isinf(val):
+                    return float(0.0)
+                return round(val, 2)
+            except:
+                return float(0.0)
+
+        # Other types not supported
+        return float(0.0)
+
+
+    def to_int_safe(self, value):
+        if value is None:
+            return int(0.0)
+
+        if isinstance(value, int):
+            return value
+
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return int(0.0)
+            return int(value)
+
+        if isinstance(value, str):
+            s = value.strip().lower()
+
+            if s in ("", "null", "none", "nan", "inf", "-inf", "infinity", "-infinity"):
+                return int(0.0)
+
+            # Remove commas
+            s = s.replace(",", "")
+
+            try:
+                return int(float(s))  # Convert "5.0" → 5 safely
+            except:
+                return int(0.0)
+
+        return int(0.0)
+
     async def analyze_all_cities_questions(self,city_id:Optional[int]=None) -> bool:
         """
         Analyze City Questions data for all cities 
         
         """
         try:
-            where_clause = "where IsDeleted=0 and CityID={cityId}" if city_id is not None else f"where IsDeleted=0" 
+            where_clause = f"where IsDeleted=0 and CityID={city_id}" if city_id is not None else f"where IsDeleted=0" 
             df = db_service.read_with_query(
                 f"Select CityID, CityName, State, Country from Cities {where_clause}"
             )
@@ -153,7 +216,7 @@ class ScoreAnalyzerService:
         """
         try:
             df = db_service.get_view_data(
-                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}"
+                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}",2
             )
             
             if not len(df):
@@ -162,15 +225,19 @@ class ScoreAnalyzerService:
                     f"No pillar questions found for city {city.CityID} ({city.CityName})"
                 )
                 return False
-
+            
             pillarIds = df["PillarID"].unique().tolist() if pillar_id is None else [pillar_id]
             
             for pillarId in pillarIds:
-                pillar_df = df[df["PillarID"] == pillarId]
+                pillar_df = df[df["PillarID"] == pillarId]  
                 questionList: list[dict[str, Any]] = []
                 
                 try:
                     for row in pillar_df.itertuples(index=False):
+                        normalizedValue = row.NormalizedValue
+                        if normalizedValue is None or (isinstance(normalizedValue, float) and math.isnan(normalizedValue)):
+                            normalizedValue = 0
+                            
                         try:
                             # Run the AI analysis
                             ai_data = await veridian_ai_research_service.research_and_score_question(
@@ -180,7 +247,7 @@ class ScoreAnalyzerService:
                                 row.PillarName,
                                 row.QuestionText,
                                 row.ScoreProgress,
-                                row.NormalizedValue * 4.0,
+                                round(normalizedValue * 4.0),
                                 None
                             )
 
@@ -189,22 +256,22 @@ class ScoreAnalyzerService:
                                     "CityID": row.CityID,
                                     "PillarID": row.PillarID,
                                     "QuestionID": row.QuestionID,
-                                    "Year": ai_data["year"],
-                                    "AIScore": ai_data["ai_score"],
-                                    "AIProgress": ai_data["ai_progress"],
-                                    "EvaluatorScore": ai_data["evaluator_score"],
-                                    "Discrepancy": ai_data["discrepancy"],
+                                    "Year": self.to_int_safe(ai_data["year"]),
+                                    "AIScore": self.to_float_safe(ai_data["ai_score"]),
+                                    "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
+                                    "EvaluatorProgress": self.to_float_safe(normalizedValue * 100),
+                                    "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
                                     "ConfidenceLevel": ai_data["confidence_level"],
-                                    "DataSourcesUsed": ai_data["data_sources_count"],
+                                    "DataSourcesUsed": self.to_int_safe(ai_data["data_sources_count"]),
                                     "EvidenceSummary": ai_data["evidence_summary"],
                                     "RedFlags": ai_data["red_flag"],
                                     "GeographicEquityNote": ai_data["geographic_equity_note"],
                                     "SourceType": ai_data["source_type"],
                                     "SourceName": ai_data["source_name"],
                                     "SourceURL": ai_data["source_url"],
-                                    "SourceDataYear": ai_data["source_data_year"],
+                                    "SourceDataYear": self.to_int_safe(ai_data["source_data_year"]),
                                     "SourceDataExtract": ai_data["source_data_extract"],
-                                    "SourceTrustLevel": ai_data["source_trust_level"]
+                                    "SourceTrustLevel": self.to_int_safe(ai_data["source_trust_level"])
                                 }
                                 questionList.append(r)
                             else:
@@ -253,7 +320,7 @@ class ScoreAnalyzerService:
         """
         try:
             df = db_service.get_view_data(
-                "vw_CityPillarEvaluations", f"cityId = {city.CityID}"
+                "vw_CityPillarEvaluations", f"cityId = {city.CityID}",2
             )
             
             if not len(df):
@@ -275,7 +342,7 @@ class ScoreAnalyzerService:
                         row.PillarID,
                         row.PillarName,
                         row.QuestionWithScores,
-                        row.EvaluatorScore,
+                        row.EvaluatorProgress,
                         row.AIScore,
                     )
 
@@ -283,31 +350,32 @@ class ScoreAnalyzerService:
                         for src in ai_data["sources"]:
                             subRes = {
                                 "CityID": row.CityID,
-                                "DataYear": ai_data['year'],
+                                "DataYear": self.to_int_safe(ai_data['year']),
                                 "PillarID": row.PillarID,
                                 "SourceType": src["source_type"],
                                 "SourceName": src["source_name"],
                                 "SourceURL": src["source_url"],
                                 "DataExtract": src["data_extract"],
-                                "TrustLevel": src["trust_level"]
+                                "TrustLevel": self.to_int_safe(src["trust_level"])
                             }
                             pillarSourceList.append(subRes)
 
                         r = {
                             "CityID": row.CityID,
                             "PillarID": row.PillarID,
-                            "Year": ai_data['year'],
-                            "AIScore": ai_data['ai_score'],
-                            "AIProgress": ai_data['ai_progress'],
-                            "EvaluatorScore": ai_data['evaluator_score'],
-                            "Discrepancy": ai_data['discrepancy'],
-                            "ConfidenceLevel": ai_data['confidence_level'],
+                            "Year": self.to_int_safe(ai_data['year']),
+                            "AIScore": self.to_float_safe(ai_data["ai_score"]),
+                            "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
+                            "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
+                            "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
+                            "ConfidenceLevel": ai_data["confidence_level"],
                             "EvidenceSummary": ai_data['evidence_summary'],
                             "RedFlags": ai_data.get('red_flag', ''),
                             "GeographicEquityNote": ai_data['geographic_equity_note'],
                             "InstitutionalAssessment": ai_data['institutional_assessment'],
                             "DataGapAnalysis": ai_data['data_gap_analysis']
                         }
+
                         pillarList.append(r)
                     else:
                         db_logger_service.log_message(
@@ -346,7 +414,7 @@ class ScoreAnalyzerService:
         """
         try:
             where = f"cityId = {city.CityID}"
-            df = db_service.get_view_data("vw_CityEvaluations", where)
+            df = db_service.get_view_data("vw_CityEvaluations", where,2)
             
             if not len(df):
                 db_logger_service.log_message(
@@ -363,7 +431,7 @@ class ScoreAnalyzerService:
                     ai_data = await veridian_ai_research_service.research_and_score_city(
                         city.CityName,
                         f"State :{city.State}, Country :{city.Country}",
-                        row.EvaluatorScore,
+                        row.EvaluatorProgress,
                         row.AIScore,
                         row.PillarWithScores
                     )
@@ -371,11 +439,11 @@ class ScoreAnalyzerService:
                     if ai_data["success"]:
                         r = {
                             "CityID": row.CityID,
-                            "Year": ai_data['year'],
-                            "AIScore": ai_data['ai_score'],
-                            "AIProgress": ai_data['ai_progress'],
-                            "EvaluatorScore": ai_data['evaluator_score'],
-                            "Discrepancy": ai_data['discrepancy'],
+                            "Year": self.to_int_safe(ai_data['year']),
+                            "AIScore": self.to_float_safe(ai_data["ai_score"]),
+                            "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
+                            "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
+                            "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
                             "ConfidenceLevel": ai_data['confidence_level'],
                             "EvidenceSummary": ai_data['evidence_summary'],
                             "CrossPillarPatterns": ai_data.get('cross_pillar_patterns', ''),
@@ -392,7 +460,7 @@ class ScoreAnalyzerService:
                             f"AI analysis failed for City {city.CityID}"
                         )
 
-                except Exception as e:
+                except Exception as e:  
                     db_logger_service.log_exception(
                         "ERROR",
                         f"Error processing city evaluation for {city.CityID}",

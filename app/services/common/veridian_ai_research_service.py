@@ -2,7 +2,7 @@
     Veridian Urban Index AI Research Service
     Independent research-based scoring with evidence tracking
 """
-
+import re
 import json
 import logging
 import pandas as pd
@@ -42,212 +42,230 @@ class VerdianAIResearchService:
             await self.initialize()
 
     async def research_and_score_question(
-        self,
-        city_name: str,
-        city_address: str,
-        pillarID:int,
-        pillar_name: str,
-        question_text: str,
-        scoreProgress: float,
-        evaluator_score: Optional[float] = None,
-        year: int = None
-    ) -> Dict[str, Any]:
-        """
-        Conduct independent research for a question and provide evidence-based score
-        
-        Args:
-            city_name: Name of the city
-            city_address: Full address for geographic context
-            question_text: The question being evaluated
-            pillar_name: Associated pillar name
-            evaluator_score: Human evaluator's score (for comparison)
-            year: Assessment year
+            self,
+            city_name: str,
+            city_address: str,
+            pillarID:int,
+            pillar_name: str,
+            question_text: str,
+            scoreProgress: Optional[float] = None,
+            evaluator_score: Optional[float] = None,
+            year: int = None
+        ) -> Dict[str, Any]:
+            """
+            Conduct independent research for a question and provide evidence-based score
             
-        Returns:
-            Dict with AI score, evidence, sources, and confidence level
-        """
-        try:
-            await self._ensure_initialized()
-            
-            if year is None:
-                year = datetime.now().year
-            
-            pillar_context = PillarPrompts.get_pillar_context(pillarID)
-
-            prompt = ChatPromptTemplate.from_messages([
-                (
-                    "system",
-                    """You are an expert urban analyst conducting independent research for the Veridian Urban Index.
-
-                    **CRITICAL MISSION**: Research real evidence and provide verifiable, source-backed scoring.
-
-                    **YOUR RESEARCH PROCESS**:
-
-                    1. **SEARCH FOR EVIDENCE** using web_search tool:
-                    - Search for: "{city_name}" official data
-                    - Search for: "{city_name}" government reports on this topic
-                    - Search for: "{city_name}" + relevant pillar keywords
-                    - Search international databases: World Bank, UN-Habitat, WHO data for this city
-                    - Search academic research on this city's performance in this area
-
-                    2. **APPLY TRUSTWORTHY SOURCE CHAIN (TSC)**:
-                    **TIER 7** (Strongest): City government portals, municipal databases, official statistics
-                    **TIER 6**: Auditor reports, ombudsman data, regulatory oversight
-                    **TIER 5**: UN agencies (UN-Habitat, WHO, UNESCO), World Bank, OECD
-                    **TIER 4**: Peer-reviewed academic journals, university research
-                    **TIER 3**: Credible NGOs (Transparency International, etc.)
-                    **TIER 2**: Private sector data (telecom, utilities, satellites)
-                    **TIER 1**: News media, social media (context only, not primary evidence)
-
-                    3. **CROSS-VERIFICATION REQUIREMENTS**:
-                    - Find AT LEAST 2 independent sources (Tiers 5-7 preferred)
-                    - Structural data > perception surveys
-                    - Recent data (within 3 years) strongly preferred
-                    - City-specific data > national averages
-                    - Check for geographic inequality within the city
-
-                    4. **RED FLAGS TO DETECT**:
-                    - Missing data in sensitive areas (potential suppression)
-                    - "Perfect scores" without verification
-                    - CBD showcase vs peripheral neglect
-                    - Claims without institutional backing
-                    - Outdated data (flag if >3 years old)
-
-                    **PILLAR-SPECIFIC CONTEXT**:
-                    {pillar_context}
-
-                    **SCORING RUBRIC (0-4)**:
-                    - **4 (Excellent)**: Multiple Tier 5-7 sources confirm strong, equitable performance
-                    - Verified institutional data
-                    - Recent evidence (≤2 years)
-                    - Documented across city geography
-                    - Sustained performance over time
-
-                    - **3 (Good)**: Solid evidence from Tier 4-6 sources
-                    - Generally positive indicators
-                    - Some limitations or data gaps
-                    - Room for improvement noted
-
-                    - **2 (Basic)**: Mixed or limited evidence
-                    - Inconsistent data
-                    - Significant gaps in coverage
-                    - Equity concerns present
-
-                    - **1 (Poor)**: Weak evidence from lower-tier sources OR
-                    - Clear deficiencies documented
-                    - Major institutional gaps
-                    - Contradictory evidence
-
-                    - **0 (Critical)**: Tier 5+ sources document systemic failure OR
-                    - Severe gaps with no contradicting evidence
-                    - Critical institutional breakdown
-                    - High-confidence evidence of poor performance
-
-                    **CONFIDENCE LEVELS**:
-                    - **High**: 3+ sources from Tiers 5-7, recent data, cross-verified, city-specific
-                    - **Medium**: 2 sources from Tiers 4-6, OR recent national data, limited cross-verification
-                    - **Low**: Single source, Tiers 1-3 only, outdated data, national-level only, or significant data gaps
-
-                    **EVALUATOR CONTEXT** (if provided):
-                    Human evaluator scored this as: {evaluator_score} and scoreProgress: {scoreProgress}%.
-                    Use this as context but conduct INDEPENDENT research. Your score may differ based on evidence.
-
-                    **OUTPUT REQUIREMENTS** (JSON format):
-                    {{
-                        "ai_score": <0.00-4.00>,
-                        "ai_progress": <0.00-100>,
-                        "confidence_level": "<High|Medium|Low>",
-                        "evidence_summary": "<100-150 words summarizing key findings and rationale>",
-                        "red_flag": "<10-150 words: any concerns found>",
-                        "geographic_equity_note": "10-60 words: <comment on inequality if detected>",
-                        "data_sources_count": <number of sources cited, >,
-                        "source_type": "<Government|International|Academic|NGO|Private|Media>",
-                        "source_name": "10-60 words: <organization name>",
-                        "source_url": "<URL if available, or 'Not available'>",
-                        "source_data_year": <year of data>,
-                        "source_trust_level": <1-7>,
-                        "source_data_extract": "10-150 words: <specific finding/data point from this source>",
-                    }}
-
-                    **RESEARCH NOW for**: {city_name} {city_address}
-                    Question: {question_text}
-                    Pillar: {pillar_name}
-                    """
-                ),
-                ("user", """Conduct independent research and provide evidence-based scoring.
-
-                    City: {city_name}
-                    Address: {city_address}
-                    Question: {question_text}
-                    Pillar: {pillar_name}
-                    Year: {year}
-                    {evaluator_context}
-
-                    Search the web for verifiable evidence and provide your assessment.""")
-            ])
-
-            evaluator_context = ""
-            if evaluator_score is not None:
-                evaluator_context = f"Evaluator's Score: {evaluator_score}/4.0"
+            Args:
+                city_name: Name of the city
+                city_address: Full address for geographic context
+                question_text: The question being evaluated
+                pillar_name: Associated pillar name
+                evaluator_score: Human evaluator's score (for comparison)
+                year: Assessment year
                 
-            chain = prompt | self.llm | StrOutputParser()
-            
-            result = await chain.ainvoke({
-                "city_name": city_name,
-                "city_address": city_address,
-                "question_text": question_text,
-                "pillar_name": pillar_name,
-                "pillar_context": pillar_context,
-                "year": year,
-                "evaluator_score": evaluator_score if evaluator_score else "Not provided",
-                "scoreProgress": scoreProgress if scoreProgress else 0,
-                "evaluator_context": evaluator_context
-            })
-            
-            # Parse response
-            cleaned = self._clean_json_response(result)
-            analysis = json.loads(cleaned)
-            
-            # Calculate discrepancy if evaluator score provided
-            discrepancy = None
-            if evaluator_score is not None:
-                discrepancy = abs(analysis['ai_score'] - evaluator_score)
-            
-            return {
-                "success": True,
-                "question": question_text,
-                "year": year,
-                "ai_score": analysis['ai_score'],
-                "ai_progress": analysis['ai_progress'],
-                "evaluator_score": evaluator_score,
-                "discrepancy": discrepancy,
-                "confidence_level": analysis['confidence_level'],
-                "data_sources_count": analysis['data_sources_count'],
-                "evidence_summary": analysis['evidence_summary'],
-                "red_flag": analysis['red_flag'],
-                "geographic_equity_note": analysis.get('geographic_equity_note', ''),
-                "source_type": analysis['source_type'],
-                "source_name": analysis['source_name'],
-                "source_url": analysis['source_url'],
-                "source_data_year": analysis['source_data_year'],
-                "source_data_extract": analysis['source_data_extract'],
-                "source_trust_level": analysis['source_trust_level']
-            }
+            Returns:
+                Dict with AI score, evidence, sources, and confidence level
+            """
+            try:
+                await self._ensure_initialized()
+                
+                if year is None:
+                    year = datetime.now().year
+                
+                pillar_context = PillarPrompts.get_pillar_context(pillarID)
 
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error: {e}\nResponse: {result}")
-            return {
-                "success": False,
-                "error": f"Invalid JSON response: {str(e)}",
-                "raw_response": result
-            }
-        except Exception as e:
-            logger.error(f"Error in question research: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e)
-            }
+                prompt = ChatPromptTemplate.from_messages([
+                    (
+                        "system",
+                        """You are an expert urban analyst conducting independent research for the Veridian Urban Index.
 
+                        **CRITICAL MISSION**: Research real evidence and provide verifiable, source-backed scoring.
+
+                        **YOUR RESEARCH PROCESS**:
+
+                        1. **SEARCH FOR EVIDENCE** using web_search tool:
+                        - Search for: "{city_name}" official data
+                        - Search for: "{city_name}" government reports on this topic
+                        - Search for: "{city_name}" + relevant pillar keywords
+                        - Search international databases: World Bank, UN-Habitat, WHO data for this city
+                        - Search academic research on this city's performance in this area
+
+                        2. **APPLY TRUSTWORTHY SOURCE CHAIN (TSC)**:
+                        **TIER 7** (Strongest): City government portals, municipal databases, official statistics
+                        **TIER 6**: Auditor reports, ombudsman data, regulatory oversight
+                        **TIER 5**: UN agencies (UN-Habitat, WHO, UNESCO), World Bank, OECD
+                        **TIER 4**: Peer-reviewed academic journals, university research
+                        **TIER 3**: Credible NGOs (Transparency International, etc.)
+                        **TIER 2**: Private sector data (telecom, utilities, satellites)
+                        **TIER 1**: News media, social media (context only, not primary evidence)
+
+                        3. **CROSS-VERIFICATION REQUIREMENTS**:
+                        - Find AT LEAST 2 independent sources (Tiers 5-7 preferred)
+                        - Structural data > perception surveys
+                        - Report ONLY the single most trustworthy source in your response
+
+                        4. **RED FLAGS TO DETECT**:
+                        - Missing data in sensitive areas (potential suppression)
+                        - "Perfect scores" without verification
+                        - CBD showcase vs peripheral neglect
+                        - Claims without institutional backing
+                        - Outdated data (flag if >3 years old)
+
+                        **PILLAR-SPECIFIC CONTEXT**:
+                        {pillar_context}
+
+                        **SCORING RUBRIC (0-4)**:
+                        - **4 (Excellent)**: Multiple Tier 5-7 sources confirm strong, equitable performance
+                        - Verified institutional data
+                        - Recent evidence (≤2 years)
+                        - Documented across city geography
+                        - Sustained performance over time
+
+                        - **3 (Good)**: Solid evidence from Tier 4-6 sources
+                        - Generally positive indicators
+                        - Some limitations or data gaps
+                        - Room for improvement noted
+
+                        - **2 (Basic)**: Mixed or limited evidence
+                        - Inconsistent data
+                        - Significant gaps in coverage
+                        - Equity concerns present
+
+                        - **1 (Poor)**: Weak evidence from lower-tier sources OR
+                        - Clear deficiencies documented
+                        - Major institutional gaps
+                        - Contradictory evidence
+
+                        - **0 (Critical)**: Tier 5+ sources document systemic failure OR
+                        - Severe gaps with no contradicting evidence
+                        - Critical institutional breakdown
+                        - High-confidence evidence of poor performance
+
+                        **CONFIDENCE LEVELS**:
+                        - **High**: 3+ sources from Tiers 5-7, recent data, cross-verified, city-specific
+                        - **Medium**: 2 sources from Tiers 4-6, OR recent national data, limited cross-verification
+                        - **Low**: Single source, Tiers 1-3 only, outdated data, national-level only, or significant data gaps
+
+                        **EVALUATOR CONTEXT** (if provided):
+                        Human evaluator scored this as: {evaluator_score} and scoreProgress: {scoreProgress}%.
+                        Use this as context but conduct INDEPENDENT research. Your score may differ based on evidence.
+
+                        **CRITICAL OUTPUT REQUIREMENTS**:
+                        You MUST return ONLY a single valid JSON object with this EXACT structure (no additional fields, no field suffixes like _2, _3, etc.):
+                        
+                        {{
+                            "ai_score": <0-4>,
+                            "ai_progress": <0.00-100>,
+                            "confidence_level": "<High|Medium|Low>",
+                            "evidence_summary": "<100-150 words summarizing key findings and rationale>",
+                            "red_flag": "<10-150 words: any concerns found, or empty string if none>",
+                            "geographic_equity_note": "<10-60 words: comment on inequality if detected, or empty string if none>",
+                            "data_sources_count": <number of sources consulted (1-5)>,
+                            "source_type": "<Government|International|Academic|NGO|Private|Media>",
+                            "source_name": "<10-60 words: organization name of the MOST TRUSTWORTHY source>",
+                            "source_url": "<URL if available, or 'Not available'>",
+                            "source_data_year": <year of data>,
+                            "source_trust_level": <1-7>,
+                            "source_data_extract": "<10-150 words: specific finding/data point from this source>"
+                        }}
+
+                        **JSON OUTPUT FORMAT REQUIREMENTS**:
+                        CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
+
+                        1. Use ONLY straight double quotes (") for all JSON keys and string values
+                        2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
+                        3. Escape all special characters in string values:
+                        - Newlines: \\n
+                        - Tabs: \\t
+                        - Quotes within strings: \\"
+                        - Backslashes: \\\\
+                        4. Do NOT include actual line breaks inside string values
+                        5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
+                        6. Keep string values concise - aim for single paragraphs without line breaks
+                        7. Test that your JSON is valid before responding
+
+                        **RESEARCH NOW for**: {city_name} {city_address}
+                        Question: {question_text}
+                        Pillar: {pillar_name}
+                        """
+                    ),
+                    ("user", """Conduct independent research and provide evidence-based scoring.
+
+                        City: {city_name}
+                        Address: {city_address}
+                        Question: {question_text}
+                        Pillar: {pillar_name}
+                        Year: {year}
+                        {evaluator_context}
+
+                        Search the web for verifiable evidence and provide your assessment.
+                        
+                        Remember: Return ONLY a single JSON object with the EXACT structure specified. Report details for only the MOST TRUSTWORTHY source.""")
+                ])
+
+                evaluator_context = ""
+                if evaluator_score is not None:
+                    evaluator_context = f"Evaluator's Score: {evaluator_score}/4"
+                    
+                chain = prompt | self.llm | StrOutputParser()
+                
+                result = await chain.ainvoke({
+                    "city_name": city_name,
+                    "city_address": city_address,
+                    "question_text": question_text,
+                    "pillar_name": pillar_name,
+                    "pillar_context": pillar_context,
+                    "year": year,
+                    "evaluator_score": evaluator_score if evaluator_score is not None else "Not provided",
+                    "scoreProgress": scoreProgress if scoreProgress is not None else 0,
+                    "evaluator_context": evaluator_context
+                })
+                
+                # Parse response
+                cleaned = self._clean_json_response(result)
+                analysis = json.loads(cleaned)
+                
+                # Calculate discrepancy if evaluator score provided
+                discrepancy = None
+                if evaluator_score is not None:
+                    discrepancy = abs(analysis['ai_progress'] - ((evaluator_score/4)*100))
+                else:
+                    discrepancy = analysis['ai_progress']
+                
+                return {
+                    "success": True,
+                    "question": question_text,
+                    "year": year,
+                    "ai_score": analysis['ai_score'],
+                    "ai_progress": analysis['ai_progress'],
+                    "discrepancy": discrepancy,
+                    "confidence_level": analysis['confidence_level'],
+                    "data_sources_count": analysis['data_sources_count'],
+                    "evidence_summary": analysis['evidence_summary'],
+                    "red_flag": analysis.get('red_flag', ''),
+                    "geographic_equity_note": analysis.get('geographic_equity_note', ''),
+                    "source_type": analysis['source_type'],
+                    "source_name": analysis['source_name'],
+                    "source_url": analysis['source_url'],
+                    "source_data_year": analysis['source_data_year'],
+                    "source_data_extract": analysis['source_data_extract'],
+                    "source_trust_level": analysis['source_trust_level']
+                }
+
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parsing error: {e}\nResponse: {result}")
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON response: {str(e)}",
+                    "raw_response": result
+                }
+            except Exception as e:
+                logger.error(f"Error in question research: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
+            
     async def research_and_score_pillar(
         self,
         city_name: str,
@@ -286,14 +304,14 @@ class VerdianAIResearchService:
             
             # Build human context
             evaluator_context = (
-                f"Human Evaluator Score: {evaluator_score}/4.0"
+                f"Human Evaluator Score: {evaluator_score}/4"
                 if evaluator_score is not None
                 else "No human evaluator score available."
             )
             
             # Build AI context
             ai_input_context = (
-                f"Previous AI Score: {aIScore}/4.0"
+                f"Previous AI Score: {aIScore}/4"
                 if aIScore is not None
                 else "No previous AI score available."
             )
@@ -430,16 +448,31 @@ class VerdianAIResearchService:
                         }}
 
                         **CRITICAL RULES:**
-                        - ai_score must be between 0.00 and 4.00
-                        - ai_progress = (ai_score / 4.0) * 100
+                        - ai_score must be between 0 and 4
+                        - ai_progress = <pillar progress or can say ai_score for pillar between 0.00-100> 
                         - Include AT LEAST 2 sources in the sources array
                         - Each source must have all required fields
-                        - Return ONLY the JSON object, nothing else
+                        
+                        **JSON OUTPUT FORMAT REQUIREMENTS**:
+                        CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
+
+                        1. Use ONLY straight double quotes (") for all JSON keys and string values
+                        2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
+                        3. Escape all special characters in string values:
+                        - Newlines: \\n
+                        - Tabs: \\t
+                        - Quotes within strings: \\"
+                        - Backslashes: \\\\
+                        4. Do NOT include actual line breaks inside string values
+                        5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
+                        6. Keep string values concise - aim for single paragraphs without line breaks
+                        7. Test that your JSON is valid before responding
+
                         """
-                                    ),
-                                    (
-                                        "user",
-                                        """Research and score the following pillar:
+                        ),
+                        (
+                            "user",
+                            """Research and score the following pillar:
 
                         City: {city_name}
                         Full Address: {city_address}
@@ -485,7 +518,9 @@ class VerdianAIResearchService:
             # Calculate discrepancy if evaluator score exists
             discrepancy = None
             if evaluator_score is not None:
-                discrepancy = abs(analysis['ai_score'] - evaluator_score)
+                discrepancy = abs(analysis['ai_progress'] - evaluator_score)
+            else:
+                discrepancy = analysis['ai_progress']
             
             return {
                 "success": True,
@@ -493,7 +528,6 @@ class VerdianAIResearchService:
                 "pillar_id": pillarId,
                 "ai_score": analysis['ai_score'],
                 "ai_progress": analysis['ai_progress'],
-                "evaluator_score": evaluator_score,
                 "discrepancy": discrepancy,
                 "confidence_level": analysis['confidence_level'],
                 "evidence_summary": analysis['evidence_summary'],
@@ -589,11 +623,14 @@ class VerdianAIResearchService:
                         - **2**: Mixed results, significant gaps, inequality concerns
                         - **1**: Weak institutions, major deficiencies, limited data
                         - **0**: Systemic failure, severe inequality, institutional collapse
+                        
+                        **Pillar Focus Areas:**
+                        {pillars_context}
 
                         **OUTPUT** (JSON):
                         {{
-                            "ai_score": <0.00-4.00>,
-                            "ai_progress": <0.00-100>,
+                            "ai_score": <0-4>,
+                            "ai_progress": <0.00-100 : overall progress accross all 14 pillars like SCORING FRAMEWORK>,
                             "confidence_level": "<High|Medium|Low>",
                             "evidence_summary": "<200-250 words: holistic assessment>",
                             "source": "<Tier 5-7 sources prioritized>",
@@ -604,8 +641,22 @@ class VerdianAIResearchService:
                             "strategic_recommendation": "<20-200 words: priority actions> ",
                             "data_transparency_note": "<2-200 words: information availability>"
                         }}
+                        
+                        **JSON OUTPUT FORMAT REQUIREMENTS**:
+                        CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
 
-                        {pillars_context}
+                        1. Use ONLY straight double quotes (") for all JSON keys and string values
+                        2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
+                        3. Escape all special characters in string values:
+                        - Newlines: \\n
+                        - Tabs: \\t
+                        - Quotes within strings: \\"
+                        - Backslashes: \\\\
+                        4. Do NOT include actual line breaks inside string values
+                        5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
+                        6. Keep string values concise - aim for single paragraphs without line breaks
+                        7. Test that your JSON is valid before responding
+
                         **RESEARCH NOW for**: {city_name} {city_address}
                 """),
                 ("user", """Conduct comprehensive city assessment:
@@ -639,14 +690,15 @@ class VerdianAIResearchService:
             
             discrepancy = None
             if evaluator_score is not None:
-                discrepancy = abs(analysis['ai_score'] - evaluator_score)
+                discrepancy = abs(analysis['ai_progress'] - evaluator_score)
+            else:
+                discrepancy = analysis['ai_progress']
             
             return {
                 "success": True,
                 "city": city_name,
                 "ai_score": analysis['ai_score'],
                 "ai_progress": analysis['ai_progress'],
-                "evaluator_score": evaluator_score,
                 "discrepancy": discrepancy,
                 "confidence_level": analysis['confidence_level'],
                 "evidence_summary": analysis['evidence_summary'],
@@ -693,7 +745,104 @@ class VerdianAIResearchService:
         
         json_str = response[start_idx:end_idx + 1]
         
-        # Remove any text before or after JSON
-        return json_str.strip()
+        # Replace smart quotes and special characters
+        json_str = json_str.replace('"', '"').replace('"', '"')
+        json_str = json_str.replace(''', "'").replace(''', "'")
+        json_str = json_str.replace('–', '-').replace('—', '-')
+        json_str = json_str.replace('…', '...')
+        
+        # Remove control characters (but keep newlines for now)
+        json_str = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', json_str)
+        
+        # Try to parse to validate
+        try:
+            json.loads(json_str)
+            return json_str
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON parse error at position {e.pos}: {e.msg}")
+            
+            # Show error context
+            start = max(0, e.pos - 100)
+            end = min(len(json_str), e.pos + 100)
+            logger.warning(f"Context: ...{json_str[start:end]}...")
+            
+            # Try to fix common issues
+            json_str_fixed = self._fix_json_escaping(json_str)
+            
+            try:
+                json.loads(json_str_fixed)
+                logger.info("Successfully fixed JSON")
+                return json_str_fixed
+            except json.JSONDecodeError as e2:
+                logger.error(f"Failed to fix JSON: {e2.msg} at position {e2.pos}")
+                logger.error(f"Problematic JSON (first 500 chars):\n{json_str[:500]}")
+                raise ValueError(f"Could not parse JSON: {e2.msg} at position {e2.pos}")
+
+    def _fix_json_escaping(self, json_str: str) -> str:
+        """
+        Fix escaping issues in JSON string values.
+        
+        Args:
+            json_str: JSON string that may have escaping issues
+            
+        Returns:
+            Fixed JSON string
+        """
+        result = []
+        i = 0
+        in_string = False
+        
+        while i < len(json_str):
+            char = json_str[i]
+            
+            # Detect string boundaries (unescaped quotes)
+            if char == '"' and (i == 0 or json_str[i-1] != '\\'):
+                in_string = not in_string
+                result.append(char)
+                i += 1
+                continue
+            
+            # Inside a string value
+            if in_string:
+                # Handle backslash sequences
+                if char == '\\' and i + 1 < len(json_str):
+                    next_char = json_str[i + 1]
+                    
+                    # Valid escape sequences
+                    if next_char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']:
+                        result.append(char)
+                        result.append(next_char)
+                        i += 2
+                        continue
+                    # Escaped single quote - not needed in JSON, remove backslash
+                    elif next_char == "'":
+                        result.append("'")
+                        i += 2
+                        continue
+                    # Invalid escape - keep the backslash and char
+                    else:
+                        result.append('\\')
+                        result.append('\\')
+                        i += 1
+                        continue
+                # Handle unescaped special characters
+                elif char == '\n':
+                    result.append('\\n')
+                    i += 1
+                elif char == '\r':
+                    result.append('\\r')
+                    i += 1
+                elif char == '\t':
+                    result.append('\\t')
+                    i += 1
+                else:
+                    result.append(char)
+                    i += 1
+            else:
+                # Outside strings, keep as is
+                result.append(char)
+                i += 1
+        
+        return ''.join(result)
 # Singleton instance
 veridian_ai_research_service = VerdianAIResearchService()
