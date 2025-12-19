@@ -7,9 +7,7 @@ import pandas as pd
 from typing import List, Dict, Any,Optional
 from contextlib import contextmanager
 import logging
-
 from app.config import settings
-
 logger = logging.getLogger(__name__)
 
 
@@ -385,7 +383,6 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error executing view '{view_name}': {e}")
             raise
-
 
     def bulk_upsert_question_evaluations(self, rows: list[dict]):
         with self.get_connection() as conn:

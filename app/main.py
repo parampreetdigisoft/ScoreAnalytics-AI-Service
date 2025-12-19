@@ -1,18 +1,22 @@
 """
-Main FastAPI Application with Database Logging
+Main FastAPI Application with Database Logging and API Key Authentication
 """
 
 import os
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Security
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.docs import get_swagger_ui_html
 import uvicorn
 
 from app.config import settings
 from app.services.common.database_service import db_service
 from app.services.common.db_logger_service import db_logger_service
+from app.middleware.auth_middleware import APIKeyMiddleware
 
 # Import routers
 from app.routers.score_analysis_router import router as score_analysis_router
@@ -35,14 +39,20 @@ root_logger.setLevel(logging.INFO)
 root_logger.addHandler(db_handler)
 
 
+# Define API Key security scheme
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Assessment AI Service",
-    description="Text-to-SQL and NLP Processing API",
+    description="Text-to-SQL and NLP Processing API. **Authentication Required**: Add your API key using the 'Authorize' button below.",
     version="1.0.0",
+    docs_url=None,  # Disable default docs to customize
+    redoc_url=None,  # Disable default redoc to customize
 )
 
-# CORS middleware
+# CORS middleware (add before auth middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
@@ -50,6 +60,72 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add API Key Authentication Middleware
+app.add_middleware(APIKeyMiddleware)
+
+
+# Custom OpenAPI schema with API Key security
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title="Assessment AI Service",
+        version="1.0.0",
+        description="Text-to-SQL and NLP Processing API with API Key Authentication",
+        routes=app.routes,
+    )
+    
+    # Add security scheme
+    openapi_schema["components"]["securitySchemes"] = {
+        "APIKeyHeader": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+            "description": "Enter your API key"
+        }
+    }
+    
+    # Apply security globally to all endpoints except excluded ones
+    excluded_paths = ["/health", "/docs", "/redoc", "/openapi.json"]
+    for path, path_item in openapi_schema["paths"].items():
+        if path not in excluded_paths:
+            for method in path_item.values():
+                if isinstance(method, dict) and "security" not in method:
+                    method["security"] = [{"APIKeyHeader": []}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
+
+
+# Custom Swagger UI with persistence
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="Assessment AI Service - Swagger UI",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        swagger_ui_parameters={
+            "persistAuthorization": True,  # Remember API key in browser
+            "displayRequestDuration": True,
+            "filter": True,
+        }
+    )
+
+
+# Custom ReDoc
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    from fastapi.openapi.docs import get_redoc_html
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="Assessment AI Service - ReDoc"
+    )
 
 
 # Global exception handler
@@ -91,6 +167,7 @@ async def startup_event():
     logger.info("🚀 Starting AI Microservice...")
     
     try:
+
         # Test database connection
         logger.info("Testing database connection...")
         db_connected = db_service.test_connection()
@@ -103,6 +180,7 @@ async def startup_event():
             )
 
         logger.info("✅ All services initialized successfully!")
+        logger.info("🔐 API Key authentication is enabled")
         logger.info(
             f"📚 API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs"
         )
@@ -123,8 +201,8 @@ async def shutdown_event():
 app.include_router(score_analysis_router)
 
 
-# Root Endpoint
-@app.get("/", summary="API Root")
+# Root Endpoint (requires API key)
+@app.get("/", summary="API Root", tags=["General"])
 async def root():
     return {
         "service": "Assessment AI Service",
@@ -138,8 +216,8 @@ async def root():
     }
 
 
-# Health Check Endpoint
-@app.get("/health", summary="Health Check")
+# Health Check Endpoint (no API key required)
+@app.get("/health", summary="Health Check", tags=["Health"])
 async def health_check():
     return {
         "status": "healthy",

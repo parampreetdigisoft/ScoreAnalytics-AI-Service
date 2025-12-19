@@ -40,7 +40,6 @@ class ScoreAnalyzerService:
 
             # Remove commas like "1,234.56"
             s = s.replace(",", "")
-
             try:
                 val = float(s)
                 if math.isnan(val) or math.isinf(val):
@@ -51,7 +50,6 @@ class ScoreAnalyzerService:
 
         # Other types not supported
         return float(0.0)
-
 
     def to_int_safe(self, value):
         if value is None:
@@ -216,7 +214,7 @@ class ScoreAnalyzerService:
         """
         try:
             df = db_service.get_view_data(
-                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}",2
+                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}"
             )
             
             if not len(df):
@@ -320,7 +318,7 @@ class ScoreAnalyzerService:
         """
         try:
             df = db_service.get_view_data(
-                "vw_CityPillarEvaluations", f"cityId = {city.CityID}",2
+                "vw_AiCityPillarEvaluation", f"cityId = {city.CityID}"
             )
             
             if not len(df):
@@ -414,7 +412,7 @@ class ScoreAnalyzerService:
         """
         try:
             where = f"cityId = {city.CityID}"
-            df = db_service.get_view_data("vw_CityEvaluations", where,2)
+            df = db_service.get_view_data("vw_CityEvaluations", where)
             
             if not len(df):
                 db_logger_service.log_message(
