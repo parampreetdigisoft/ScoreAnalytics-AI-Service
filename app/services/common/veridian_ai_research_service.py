@@ -24,7 +24,7 @@ class VerdianAIResearchService:
         self.llm = None
         self._initialized = False
         self.max_retries = 3
-        self.retry_delay = 2  # seconds
+        self.retry_delay = 1  # seconds
 
     async def initialize(self):
         """Initialize the LLM with retry logic"""
@@ -41,6 +41,7 @@ class VerdianAIResearchService:
                 logger.error(f"Initialization attempt {attempt + 1} failed: {e}")
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(self.retry_delay)
+                    continue
                 else:
                     raise RuntimeError(f"Failed to initialize after {self.max_retries} attempts: {e}")
 
@@ -143,7 +144,7 @@ class VerdianAIResearchService:
                             "source_trust_level": analysis['source_trust_level']
                         }
 
-                    except json.JSONDecodeError as e:
+                    except json.JSONDecodeError or ValueError as e:
                         logger.warning(f"JSON parse error on attempt {attempt + 1}: {e}")
                         if attempt < self.max_retries - 1:
                             await asyncio.sleep(self.retry_delay)
@@ -275,7 +276,7 @@ class VerdianAIResearchService:
                         "timestamp": datetime.now().isoformat()
                     }
                     
-                except json.JSONDecodeError as e:
+                except json.JSONDecodeError or ValueError as e:
                     logger.warning(f"JSON parse error on attempt {attempt + 1}: {e}")
                     if attempt < self.max_retries - 1:
                         await asyncio.sleep(self.retry_delay)
@@ -375,7 +376,7 @@ class VerdianAIResearchService:
                         "data_transparency_note": analysis.get('data_transparency_note', ''),
                         "year": year
                     }
-                except json.JSONDecodeError as e:
+                except json.JSONDecodeError or ValueError as e:
                     logger.warning(f"JSON parse error on attempt {attempt + 1}: {e}")
                     if attempt < self.max_retries - 1:
                         await asyncio.sleep(self.retry_delay)
@@ -825,7 +826,7 @@ class VerdianAIResearchService:
                         {{
                         "ai_score": <Scoring Rubric (0-4 scale)> ,
                         "ai_progress": <ai estimated progress for current year (0-100)>,
-                        "confidence_level": "High",
+                        "confidence_level": "<High|Medium|Low>",
                         "evidence_summary": "Concise 150-200 word summary of key findings, patterns discovered, and critical gaps identified based on your research.",
                         "sources": [
                             {{
