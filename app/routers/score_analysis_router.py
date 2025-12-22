@@ -5,7 +5,7 @@ Fire-and-forget pattern for long-running analysis tasks
 import logging
 import asyncio
 from fastapi import APIRouter, HTTPException
-from app.models.AnalysisRequest import AnalysisResponse
+from app.view_models.AnalysisRequest import AnalysisResponse
 from app.services.score_analyzer_service import score_analyzer_service
 from app.services.common.db_logger_service import db_logger_service
 
