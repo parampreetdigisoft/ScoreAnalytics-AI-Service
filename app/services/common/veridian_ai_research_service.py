@@ -144,13 +144,14 @@ class VerdianAIResearchService:
                             "source_trust_level": analysis['source_trust_level']
                         }
 
-                    except json.JSONDecodeError or ValueError as e:
-                        logger.warning(f"JSON parse error on attempt {attempt + 1}: {e}")
+                    except (json.JSONDecodeError, ValueError) as e:
+                        logger.error(f"JSON parse error on attempt {attempt + 1}: {e}")
                         if attempt < self.max_retries - 1:
                             await asyncio.sleep(self.retry_delay)
                             continue
                         else:
                             raise
+
             except Exception as e:
                 logger.error(f"Error in question research: {e}", exc_info=True)
                 return {
@@ -276,8 +277,8 @@ class VerdianAIResearchService:
                         "timestamp": datetime.now().isoformat()
                     }
                     
-                except json.JSONDecodeError or ValueError as e:
-                    logger.warning(f"JSON parse error on attempt {attempt + 1}: {e}")
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.error(f"JSON parse error on attempt {attempt + 1}: {e}")
                     if attempt < self.max_retries - 1:
                         await asyncio.sleep(self.retry_delay)
                         continue
@@ -376,8 +377,8 @@ class VerdianAIResearchService:
                         "data_transparency_note": analysis.get('data_transparency_note', ''),
                         "year": year
                     }
-                except json.JSONDecodeError or ValueError as e:
-                    logger.warning(f"JSON parse error on attempt {attempt + 1}: {e}")
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.error(f"JSON parse error on attempt {attempt + 1}: {e}")
                     if attempt < self.max_retries - 1:
                         await asyncio.sleep(self.retry_delay)
                         continue

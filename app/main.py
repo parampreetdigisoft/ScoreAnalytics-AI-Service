@@ -44,7 +44,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 # Create FastAPI app
 app = FastAPI(
     title="Assessment AI Service",
-    description="Text-to-SQL and NLP Processing API. **Authentication Required**: Add your API key using the 'Authorize' button below.",
+    description="Analysis API. **Authentication Required**: Add your API key using the 'Authorize' button below.",
     version="1.0.0",
     docs_url=None,  # Disable default docs to customize
     redoc_url=None,  # Disable default redoc to customize
@@ -71,7 +71,7 @@ def custom_openapi():
     openapi_schema = get_openapi(
         title="Assessment AI Service",
         version="1.0.0",
-        description="Text-to-SQL and NLP Processing API with API Key Authentication",
+        description="Analysis API with API Key Authentication",
         routes=app.routes,
     )
     
@@ -142,12 +142,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
     
-    # Also use direct service call for critical errors
-    db_logger_service.log_exception(
-        "ERROR",
-        f"Unhandled exception at {request.method} {request.url.path}",
-        exc
-    )
     
     return JSONResponse(
         status_code=500,
@@ -172,10 +166,6 @@ async def startup_event():
         
         if not db_connected:
             logger.warning("⚠️ Database connection failed - some features may not work")
-            db_logger_service.log_message(
-                "WARNING",
-                "Database connection failed during startup"
-            )
 
         logger.info("✅ All services initialized successfully!")
         logger.info("🔐 API Key authentication is enabled")
@@ -185,7 +175,6 @@ async def startup_event():
 
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
-        db_logger_service.log_exception("CRITICAL", "Application startup failed", e)
         raise
 
 

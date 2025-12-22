@@ -5,8 +5,8 @@ import math
 import logging
 from typing import Any, Optional
 from app.services.common.database_service import db_service
-from app.services.common.veridian_ai_research_service import veridian_ai_research_service
 from app.services.common.db_logger_service import db_logger_service
+from app.services.common.veridian_ai_research_service import veridian_ai_research_service
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -91,8 +91,7 @@ class ScoreAnalyzerService:
             )
 
             if df.empty:
-                db_logger_service.log_message(
-                    "WARNING",
+                logger.error(
                     f"No cities found for analysis analyze_all_cities_questions endpoint"
                 )
                 return False
@@ -103,22 +102,14 @@ class ScoreAnalyzerService:
                     await self.analyze_cityPillar(city)
                     await self.analyze_city(city)
                 except Exception as e:
-                    db_logger_service.log_exception(
-                        "ERROR",
-                        f"Failed to analyze city {city.CityID} ({city.CityName})",
-                        e
-                    )
+                    logger.error(f"Failed to analyze city {city.CityID} ({city.CityName}) {e}",)
                     # Continue with next city instead of stopping
                     continue
 
             return True
             
         except Exception as e:
-            db_logger_service.log_exception(
-                "ERROR",
-                f"Error in analyze_all_cities_questions ",
-                e
-            )
+            logger.error(f"Error in analyze_all_cities_questions {e}")
             raise
 
     async def analyze_single_City(self, cityId: int) -> bool:
@@ -142,11 +133,7 @@ class ScoreAnalyzerService:
             return True
             
         except Exception as e:
-            db_logger_service.log_exception(
-                "ERROR",
-                f"Error in analyze_single_City (CityID: {cityId})",
-                e
-            )
+            logger.error(f"Error in analyze_single_City (CityID: {cityId}) {e}")
             raise
 
     async def analyze_city_pillars(self, cityId: int) -> bool:
@@ -170,11 +157,7 @@ class ScoreAnalyzerService:
             return True
             
         except Exception as e:
-            db_logger_service.log_exception(
-                "ERROR",
-                f"Error in analyze_single_City (CityID: {cityId})",
-                e
-            )
+            logger.error(f"Error in analyze_single_City (CityID: {cityId}) {e}")
             raise
 
     async def analyze_questions_of_city_pillar(self, cityId: int,pillar_id:Optional[int]=None) -> bool:
@@ -198,11 +181,7 @@ class ScoreAnalyzerService:
                 return True
                 
             except Exception as e:
-                db_logger_service.log_exception(
-                    "ERROR",
-                    f"Error in analyze_single_City (CityID: {cityId})",
-                    e
-                )
+                logger.error(f"Error in analyze_single_City (CityID: {cityId}) {e}")
                 raise
 
     async def analyze_PillarQuestions(self, city: Any, pillar_id:Optional[int]=None) -> bool:
@@ -213,15 +192,10 @@ class ScoreAnalyzerService:
             city: City record with CityID, CityName, State, Country
         """
         try:
-            df = db_service.get_view_data(
-                "vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}"
-            )
+            df = db_service.get_view_data("vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}")
             
             if not len(df):
-                db_logger_service.log_message(
-                    "INFO",
-                    f"No pillar questions found for city {city.CityID} ({city.CityName})"
-                )
+                db_logger_service.log_message("INFO",f"No pillar questions found for city {city.CityID} ({city.CityName})")
                 return False
             
             pillarIds = df["PillarID"].unique().tolist() if pillar_id is None else [pillar_id]
@@ -273,17 +247,10 @@ class ScoreAnalyzerService:
                                 }
                                 questionList.append(r)
                             else:
-                                db_logger_service.log_message(
-                                    "WARNING",
-                                    f"AI analysis failed for QuestionID {row.QuestionID} in City {city.CityID}"
-                                )
+                                db_logger_service.log_message("WARNING",f"AI analysis failed for QuestionID {row.QuestionID} in City {city.CityID}")
                                 
                         except Exception as e:
-                            db_logger_service.log_exception(
-                                "ERROR",
-                                f"Error processing question {row.QuestionID} for city {city.CityID}",
-                                e
-                            )
+                            logger.error(f"Error processing question {row.QuestionID} for city {city.CityID} {e}")
                             # Continue with next question
                             continue
                     
@@ -291,22 +258,14 @@ class ScoreAnalyzerService:
                         db_service.bulk_upsert_question_evaluations(questionList)
 
                 except Exception as e:
-                    db_logger_service.log_exception(
-                        "ERROR",
-                        f"Error analyzing pillar {pillarId} for city {city.CityID}",
-                        e
-                    )
+                    logger.error(f"Error analyzing pillar {pillarId} for city {city.CityID} {e}")
                     # Continue with next pillar
                     continue
                     
             return True
             
         except Exception as e:
-            db_logger_service.log_exception(
-                "ERROR",
-                f"Error in analyze_PillarQuestions for city {city.CityID}",
-                e
-            )
+            logger.error(f"Error in analyze_PillarQuestions for city {city.CityID} {e}")
             raise
 
     async def analyze_cityPillar(self, city: Any) -> bool:
@@ -322,10 +281,7 @@ class ScoreAnalyzerService:
             )
             
             if not len(df):
-                db_logger_service.log_message(
-                    "INFO",
-                    f"No pillar evaluations found for city {city.CityID} ({city.CityName})"
-                )
+                db_logger_service.log_message("INFO",f"No pillar evaluations found for city {city.CityID} ({city.CityName})")
                 return False
 
             pillarList: list[dict[str, Any]] = []
@@ -376,17 +332,10 @@ class ScoreAnalyzerService:
 
                         pillarList.append(r)
                     else:
-                        db_logger_service.log_message(
-                            "WARNING",
-                            f"AI analysis failed for PillarID {row.PillarID} in City {city.CityID}"
-                        )
+                        db_logger_service.log_message("WARNING",f"AI analysis failed for PillarID {row.PillarID} in City {city.CityID}")
 
                 except Exception as e:
-                    db_logger_service.log_exception(
-                        "ERROR",
-                        f"Error processing pillar {row.PillarID} for city {city.CityID}",
-                        e
-                    )
+                    logger.error(f"Error processing pillar {row.PillarID} for city {city.CityID} {e}")
                     continue
 
             if len(pillarList) > 0:
@@ -396,14 +345,10 @@ class ScoreAnalyzerService:
             return False
             
         except Exception as e:
-            db_logger_service.log_exception(
-                "ERROR",
-                f"Error in analyze_cityPillar for city {city.CityID}",
-                e
-            )
+            logger.error(f"Error in analyze_cityPillar for city {city.CityID} {e}")
             raise
 
-    async def analyze_city(self, city: Any) -> bool:
+    async def analyze_city(self, city: Any) -> bool:    
         """
         Analyze overall city data and generate comprehensive evaluation
         
@@ -415,10 +360,7 @@ class ScoreAnalyzerService:
             df = db_service.get_view_data("vw_CityEvaluations", where)
             
             if not len(df):
-                db_logger_service.log_message(
-                    "INFO",
-                    f"No city evaluations found for city {city.CityID} ({city.CityName})"
-                )
+                db_logger_service.log_message("INFO",f"No city evaluations found for city {city.CityID} ({city.CityName})")
                 return False
 
             cityList: list[dict[str, Any]] = []
@@ -453,17 +395,10 @@ class ScoreAnalyzerService:
                         }
                         cityList.append(r)
                     else:
-                        db_logger_service.log_message(
-                            "WARNING",
-                            f"AI analysis failed for City {city.CityID}"
-                        )
+                        db_logger_service.log_message("WARNING",f"AI analysis failed for City {city.CityID}")
 
                 except Exception as e:  
-                    db_logger_service.log_exception(
-                        "ERROR",
-                        f"Error processing city evaluation for {city.CityID}",
-                        e
-                    )
+                    logger.error(f"Error processing city evaluation for {city.CityID}")
                     continue
 
             if len(cityList):
@@ -473,11 +408,7 @@ class ScoreAnalyzerService:
             return False
             
         except Exception as e:
-            db_logger_service.log_exception(
-                "ERROR",
-                f"Error in analyze_city for city {city.CityID}",
-                e
-            )
+            logger.error(f"Error in analyze_city for city {city.CityID} {e}")
             raise
 
 

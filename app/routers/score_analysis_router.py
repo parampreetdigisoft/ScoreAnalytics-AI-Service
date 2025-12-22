@@ -7,9 +7,6 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from app.view_models.AnalysisRequest import AnalysisResponse
 from app.services.score_analyzer_service import score_analyzer_service
-from app.services.common.db_logger_service import db_logger_service
-
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cities-score-analysis", tags=["Score Analysis"])
@@ -22,12 +19,10 @@ async def run_analysis_task(task_name: str, coro):
     """
     try:
         await coro
-        #db_logger_service.log_message("INFO",f"Background task '{task_name}' completed successfully")
 
     except Exception as e:
         error_msg = f"Background task '{task_name}' failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception("ERROR", error_msg, e)
 
 
 @router.post("/analyze/full", response_model=AnalysisResponse)
@@ -53,11 +48,6 @@ async def analyze_all_cities_full():
     except Exception as e:
         error_msg = f"Error starting city analysis: {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception(
-            "ERROR",
-            "Failed to start city analysis",
-            e
-        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -89,11 +79,7 @@ async def analyze_single_city_full(city_id: int):
     except Exception as e:
         error_msg = f"Error starting single city analysis (ID: {city_id}): {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception(
-            "ERROR",
-            f"Failed to start analysis for city ID: {city_id}",
-            e
-        )
+        
         raise HTTPException(status_code=500, detail=str(e))
 
     
@@ -125,11 +111,6 @@ async def analyze_single_City(city_id: int):
     except Exception as e:
         error_msg = f"Error starting single city analysis (ID: {city_id}): {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception(
-            "ERROR",
-            f"Failed to start city analysis for ID: {city_id}",
-            e
-        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -161,11 +142,6 @@ async def analyze_city_pillars(city_id: int):
     except Exception as e:
         error_msg = f"Error starting pillar analysis (ID: {city_id}): {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception(
-            "ERROR",
-            f"Failed to start pillar analysis for city ID: {city_id}",
-            e
-        )
         raise HTTPException(status_code=500, detail=str(e))
 
   
@@ -197,11 +173,6 @@ async def analyze_questions_of_city(city_id: int):
     except Exception as e:
         error_msg = f"Error starting questions analysis (ID: {city_id}): {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception(
-            "ERROR",
-            f"Failed to start questions analysis for city ID: {city_id}",
-            e
-        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -233,9 +204,4 @@ async def analyze_questions_of_city_pillar(city_id: int, pillar_id: int):
     except Exception as e:
         error_msg = f"Error starting pillar questions analysis (City: {city_id}, Pillar: {pillar_id}): {str(e)}"
         logger.error(error_msg, exc_info=True)
-        db_logger_service.log_exception(
-            "ERROR",
-            f"Failed to start pillar questions analysis for city {city_id}, pillar {pillar_id}",
-            e
-        )
         raise HTTPException(status_code=500, detail=str(e))
