@@ -3,7 +3,7 @@
 API Key Authentication Middleware
 """
 
-from fastapi import Request, HTTPException, status
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
@@ -31,11 +31,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         # Get API key from header
-        api_key = request.headers.get("X-API-Key") or request.headers.get("Authorization")
+        api_key = request.headers.get("X-API-Key")  # or request.headers.get("Authorization")
         
-        # Remove "Bearer " prefix if present
-        if api_key and api_key.startswith("Bearer "):
-            api_key = api_key[7:]
+        # # Remove "Bearer " prefix if present
+        # if api_key and api_key.startswith("Bearer "):
+        #     api_key = api_key[7:]
         
         # Validate API key
         if not api_key:

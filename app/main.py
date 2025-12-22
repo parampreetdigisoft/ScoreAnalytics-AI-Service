@@ -5,14 +5,12 @@ Main FastAPI Application with Database Logging and API Key Authentication
 import os
 import logging
 
-from fastapi import FastAPI, Request, Security
+from fastapi import FastAPI, Request
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
 from fastapi.openapi.docs import get_swagger_ui_html
-import uvicorn
-
 from app.config import settings
 from app.services.common.database_service import db_service
 from app.services.common.db_logger_service import db_logger_service
@@ -55,7 +53,7 @@ app = FastAPI(
 # CORS middleware (add before auth middleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],  #Configure appropriately for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -223,13 +221,3 @@ async def health_check():
         "status": "healthy",
         "database": settings.DB_NAME,
     }
-
-
-# ASGI Server Entry
-if __name__ == "__main__":
-    uvicorn.run(
-        "app.main:app",
-        host=settings.API_HOST,
-        port=settings.API_PORT,
-        reload=settings.API_RELOAD,
-    )
