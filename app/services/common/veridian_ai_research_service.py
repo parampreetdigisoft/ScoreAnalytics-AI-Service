@@ -6,9 +6,8 @@ import re
 import json
 import asyncio
 import logging
-import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.config import settings

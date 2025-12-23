@@ -192,7 +192,7 @@ class ScoreAnalyzerService:
             city: City record with CityID, CityName, State, Country
         """
         try:
-            df = db_service.get_view_data("vw_CityPillarQuestionEvaluations", f"cityId = {city.CityID}")
+            df = db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", f"cityId = {city.CityID}")
             
             if not len(df):
                 db_logger_service.log_message("INFO",f"No pillar questions found for city {city.CityID} ({city.CityName})")
@@ -357,7 +357,7 @@ class ScoreAnalyzerService:
         """
         try:
             where = f"cityId = {city.CityID}"
-            df = db_service.get_view_data("vw_CityEvaluations", where)
+            df = db_service.get_view_data("vw_AiCityEvaluations", where)
             
             if not len(df):
                 db_logger_service.log_message("INFO",f"No city evaluations found for city {city.CityID} ({city.CityName})")
