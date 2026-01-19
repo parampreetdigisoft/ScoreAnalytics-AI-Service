@@ -205,3 +205,35 @@ async def analyze_questions_of_city_pillar(city_id: int, pillar_id: int):
         error_msg = f"Error starting pillar questions analysis (City: {city_id}, Pillar: {pillar_id}): {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+    
+@router.post("/analyze/{city_id}/single-pillar/{pillar_id}", response_model=AnalysisResponse)
+async def analyze_single_pillar(city_id: int, pillar_id: int):
+    """
+    Analyze single pillar for a city
+    Returns immediately while analysis runs in background
+    """
+    try:
+        if not city_id and not pillar_id: 
+            raise HTTPException(status_code=400, detail="provide required parameter")
+        
+        # Start analysis in background
+        asyncio.create_task(
+            run_analysis_task(
+                f"analyze single city{city_id}_pillar_{pillar_id}",
+                score_analyzer_service.analyze_Single_Pillar(city_id, pillar_id)
+            )
+        )
+        
+        return AnalysisResponse(
+            success=True,
+            message=f"City {city_id} pillar {pillar_id} analysis started successfully. Processing in background.",
+        )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Error starting pillar analysis (City: {city_id}, Pillar: {pillar_id}): {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

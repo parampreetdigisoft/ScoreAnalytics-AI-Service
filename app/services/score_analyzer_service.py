@@ -160,6 +160,30 @@ class ScoreAnalyzerService:
             logger.error(f"Error in analyze_single_City (CityID: {cityId}) {e}")
             raise
 
+    async def analyze_Single_Pillar(self, cityId: int,pillar_id:int=None) -> bool:
+            """
+            Analyze City Questions data for a specific city.
+
+            Args:
+                cityId: ID of the city to process.
+            """
+            try:
+                df = db_service.read_with_query(
+                    f"Select CityID, CityName, State, Country from Cities where IsDeleted=0 and CityID={cityId}"
+                )
+
+                if df.empty:
+                    return False
+
+                for city in df.itertuples(index=False):
+                    await self.analyze_cityPillar(city,pillar_id)
+
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error in analyze_Single_Pillar(CityID: {cityId} , PillarID :{pillar_id}) {e}")
+                raise
+
     async def analyze_questions_of_city_pillar(self, cityId: int,pillar_id:Optional[int]=None) -> bool:
             """
             Analyze City Questions data for a specific city.
@@ -268,7 +292,7 @@ class ScoreAnalyzerService:
             logger.error(f"Error in analyze_PillarQuestions for city {city.CityID} {e}")
             raise
 
-    async def analyze_cityPillar(self, city: Any) -> bool:
+    async def analyze_cityPillar(self, city: Any, pillar_id:Optional[int]=None) -> bool:
         """
         Analyze city pillar data and generate evaluations
         
@@ -276,14 +300,17 @@ class ScoreAnalyzerService:
             city: City record with CityID, CityName, State, Country
         """
         try:
-            df = db_service.get_view_data(
-                "vw_AiCityPillarEvaluation", f"cityId = {city.CityID}"
-            )
+            where = f"cityId = {city.CityID}"
+
+            if pillar_id is not None and pillar_id > 0:
+                where = f"cityId = {city.CityID} and PillarID = {pillar_id}"
+
+            df = db_service.get_view_data("vw_AiCityPillarEvaluation", where)
             
             if not len(df):
                 db_logger_service.log_message("INFO",f"No pillar evaluations found for city {city.CityID} ({city.CityName})")
                 return False
-
+                
             pillarList: list[dict[str, Any]] = []
             pillarSourceList: list[dict[str, Any]] = []
             
