@@ -9,6 +9,23 @@
 # python -m pip install -r requirements.txt
 
 
+# netstat -ano | findstr :8000
+# Example output: TCP    127.0.0.1:8001     0.0.0.0:0     LISTENING     12345
+# 12345 = PID
+
+# METHOD 1: Kill Task
+# taskkill /PID 12345 /F
+# Uvicorn is now stopped.
+
+# Verify
+# netstat -ano | findstr :8000
+
+# METHOD 2: Kill by Process Name (Easy)
+# taskkill /IM uvicorn.exe /F
+
+# METHOD 3: Kill Python Process (Last Option) This kills all Python processes:
+# taskkill /IM python.exe /F
+
 
 # Core API Framework
 fastapi==0.109.0
