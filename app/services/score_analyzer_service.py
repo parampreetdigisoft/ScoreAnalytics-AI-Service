@@ -195,7 +195,7 @@ class ScoreAnalyzerService:
                 where = f"cityId = {city.CityID} and PillarID={pillar_id}"
 
 
-            df = db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", where,5)
+            df = db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", where)
             
             if not len(df):
                 db_logger_service.log_message("INFO", f"No pillar questions found for city {city.CityID} ({city.CityName})")
