@@ -190,7 +190,12 @@ class ScoreAnalyzerService:
     async def analyze_PillarQuestions(self, city: Any, pillar_id: Optional[int] = None) -> bool:
         """Analyze Pillar Questions data for a city"""
         try:
-            df = db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", f"cityId = {city.CityID}")
+            where = f"cityId = {city.CityID}"
+            if pillar_id is not None:
+                where = f"cityId = {city.CityID} and PillarID={pillar_id}"
+
+
+            df = db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", where,5)
             
             if not len(df):
                 db_logger_service.log_message("INFO", f"No pillar questions found for city {city.CityID} ({city.CityName})")

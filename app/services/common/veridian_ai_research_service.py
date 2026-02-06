@@ -208,13 +208,6 @@ class VerdianAIResearchService:
                 else "No previous AI score available."
             )
             
-            # Build question context
-            question_research_context = (
-                f"Question-Level Research Data:\n{questions_context}"
-                if questions_context
-                else "No question-level research data provided."
-            )
-            
             # Create the prompt
             prompt = ChatPromptTemplate.from_messages([
                 ("system",self._get_pillar_system_prompt()),
@@ -244,7 +237,6 @@ class VerdianAIResearchService:
                         "pillar_name": pillar_name,
                         "year": year,
                         "pillar_context": pillar_context,
-                        "question_research_context": question_research_context,
                         "ai_input_context": ai_input_context,
                         "evaluator_context": evaluator_context
                     })
@@ -619,6 +611,7 @@ class VerdianAIResearchService:
                 You are an expert urban analyst conducting independent research for the Veridian Urban Index.
 
                 **CRITICAL MISSION**: Research real evidence and provide verifiable, source-backed scoring for a specific urban question.
+            
 
                 **YOUR RESEARCH PROCESS**:
 
@@ -691,6 +684,8 @@ class VerdianAIResearchService:
                 Human evaluator scored this as: {evaluator_score} and scoreProgress: {scoreProgress}%.
                 Use this as context but conduct INDEPENDENT research. Your score may differ based on evidence.
 
+                **OUTPUT AUDIENCE**: Responses must be readable by a general audience and avoid technical or internal scoring terminology.
+
                 **CRITICAL OUTPUT REQUIREMENTS**:
                 You MUST return ONLY a single valid JSON object with this EXACT structure (no additional fields, no field suffixes like _2, _3, etc.):
                 
@@ -711,7 +706,7 @@ class VerdianAIResearchService:
                 }}
 
                 **JSON OUTPUT FORMAT REQUIREMENTS**:
-                CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
+                CRITICAL: You MUST return valid, fully parseable JSON only. Failure to follow any rule below is unacceptable.
 
                 1. Use ONLY straight double quotes (") for all JSON keys and string values
                 2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
@@ -724,6 +719,13 @@ class VerdianAIResearchService:
                 5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
                 6. Keep string values concise - aim for single paragraphs without line breaks
                 7. Test that your JSON is valid before responding
+                8. Use ASCII characters only (no Unicode characters such as \u2019, smart apostrophes, or typographic symbols).
+                9. Before responding, verify that:
+                    - All string values are closed
+                    - The JSON object ends with a closing brace }}
+                        
+                    Failure Handling:
+                        If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
 
                 **RESEARCH NOW for**: {city_name} {city_address}
                 Question: {question_text}
@@ -812,9 +814,6 @@ class VerdianAIResearchService:
                         **Pillar Focus Areas:**
                         {pillar_context}
 
-                        **Question-Level Context:**
-                        {question_research_context}
-
                         **Reference Scores (for context only - DO NOT copy these):**
                         {evaluator_context}
                         {ai_input_context}
@@ -827,7 +826,7 @@ class VerdianAIResearchService:
                         "ai_score": <Scoring Rubric (0-4 scale)> ,
                         "ai_progress": <ai estimated progress for current year (0-100)>,
                         "confidence_level": "<High|Medium|Low>",
-                        "evidence_summary": "Concise 150-200 word summary of key findings, patterns discovered, and critical gaps identified based on your research.",
+                        "evidence_summary": "Concise MAX 250 words, patterns discovered, and critical gaps identified based on your research, written for a general audience with no technical or internal scoring terminology",
                         "sources": [
                             {{
                             "source_type": "Government",
@@ -858,6 +857,9 @@ class VerdianAIResearchService:
                         - Include AT LEAST 2 sources in the sources array
                         - Each source must have all required fields
                         
+                        **OUTPUT AUDIENCE**: Responses must be readable by a general audience and avoid technical or internal scoring terminology.
+
+  
                         **JSON OUTPUT FORMAT REQUIREMENTS**:
                         CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
 
@@ -872,6 +874,13 @@ class VerdianAIResearchService:
                         5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
                         6. Keep string values concise - aim for single paragraphs without line breaks
                         7. Test that your JSON is valid before responding
+                        8. Use ASCII characters only (no Unicode characters such as \u2019, smart apostrophes, or typographic symbols).
+                        9. Before responding, verify that:
+                        - All string values are closed
+                        - The JSON object ends with a closing brace }}
+                        
+                    Failure Handling:
+                        If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
 
                         """
 
@@ -957,21 +966,23 @@ class VerdianAIResearchService:
             - **Medium**: Mixed data quality, some gaps, moderate verification
             - **Low**: Limited data, significant gaps, national proxies only
 
+           **OUTPUT AUDIENCE**: Responses must be readable by a general audience and avoid technical or internal scoring terminology.
+
             **OUTPUT** (JSON):
             {{
                 "ai_score": <0-4>,
                 "ai_progress": <0.00-100 : overall progress accross all 14 pillars like SCORING FRAMEWORK>,
                 "confidence_level": "<High|Medium|Low>",
-                "evidence_summary": "<200-250 words: holistic assessment>",
+                "evidence_summary": "<MAX 250 words, single paragraph, written for a general audience with no technical or internal scoring terminology>"
                 "source": "<Tier 5-7 sources prioritized>",
-                "cross_pillar_patterns": "<2-200 words: systemic observations>",
-                "institutional_capacity": "<2-200 words: governance quality assessment>",
-                "equity_assessment": "<2-200 words: geographic and social inclusion>",
-                "sustainability_outlook": "<20-200 words: trajectory and resilience>",
-                "strategic_recommendation": "<20-200 words: priority actions> ",
-                "data_transparency_note": "<2-200 words: information availability>"
+                "cross_pillar_patterns": "<MAX 200 words, ASCII only : systemic observations>",
+                "institutional_capacity": "<MAX 200 words, ASCII only : governance quality assessment>",
+                "equity_assessment": "<MAX 200 words, ASCII only : geographic and social inclusion>",
+                "sustainability_outlook": "<MAX 200 words, ASCII only :trajectory and resilience>",
+                "strategic_recommendation": "<MAX 200 words, ASCII only : priority actions>",
+                "data_transparency_note": "<MAX 200 words, ASCII only : information availability>"
             }}
-            
+
             **JSON OUTPUT FORMAT REQUIREMENTS**:
             CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
 
@@ -986,7 +997,14 @@ class VerdianAIResearchService:
             5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
             6. Keep string values concise - aim for single paragraphs without line breaks
             7. Test that your JSON is valid before responding
-
+            8. Use ASCII characters only (no Unicode characters such as \u2019, smart apostrophes, or typographic symbols).
+            9. Before responding, verify that:
+            - All string values are closed
+            - The JSON object ends with a closing brace }}
+            
+           Failure Handling:
+            If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
+         
             **RESEARCH NOW for**: {city_name} {city_address} """
     
 # Singleton instance
