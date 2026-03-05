@@ -973,7 +973,7 @@ class VerdianAIResearchService:
                 "ai_score": <0-4>,
                 "ai_progress": <0.00-100 : overall progress accross all 14 pillars like SCORING FRAMEWORK>,
                 "confidence_level": "<High|Medium|Low>",
-                "evidence_summary": "<MAX 500 words, single paragraph, written for a general audience with no technical or internal scoring terminology>"
+                "evidence_summary": "Write an Executive Summary (in 400 - 500 words) in a single paragraph for a general audience. The summary should highlight the key findings, major trends, and principal conclusions drawn from the entire report. Do not focus on individual pillars or use technical or internal scoring terminology. The summary should provide a clear high-level overview of the city's overall performance, main strengths, key challenges, and major insights identified in the analysis.",
                 "source": "<Tier 5-7 sources prioritized>",
                 "cross_pillar_patterns": "<MAX 200 words, ASCII only : systemic observations>",
                 "institutional_capacity": "<MAX 200 words, ASCII only : governance quality assessment>",
