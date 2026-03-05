@@ -826,7 +826,7 @@ class VerdianAIResearchService:
                         "ai_score": <Scoring Rubric (0-4 scale)> ,
                         "ai_progress": <ai estimated progress for current year (0-100)>,
                         "confidence_level": "<High|Medium|Low>",
-                        "evidence_summary": "Concise MAX 250 words, patterns discovered, and critical gaps identified based on your research, written for a general audience with no technical or internal scoring terminology",
+                        "evidence_summary": "Concise MAX 300 words, patterns discovered, and critical gaps identified based on your research, written for a general audience with no technical or internal scoring terminology",
                         "sources": [
                             {{
                             "source_type": "Government",
