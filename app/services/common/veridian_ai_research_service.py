@@ -848,7 +848,7 @@ class VerdianAIResearchService:
                         "red_flag": "Concise 150-200 words Description of any systemic concerns, contradictions, or warning signs identified ",
                         "geographic_equity_note": "Concise 150-200 words Assessment of whether services/outcomes are equitably distributed across the city",
                         "institutional_assessment": " Concise 150-200 words Evaluation of government capacity, governance quality, and institutional effectiveness",
-                        "data_gap_analysis": "Concise 150-200 words Critical information that was missing or unavailable during research"
+                        "data_gap_analysis": "Generate a 150–200 word paragraph for the 'Analytical Foundations and Data Integration' section that explains the major data gaps encountered during the research, including missing datasets, limited city-level indicators, and areas where publicly available information was insufficient."
                         }}
 
                         **CRITICAL RULES:**
