@@ -973,7 +973,7 @@ class VerdianAIResearchService:
                 "ai_score": <0-4>,
                 "ai_progress": <0.00-100 : overall progress accross all 14 pillars like SCORING FRAMEWORK>,
                 "confidence_level": "<High|Medium|Low>",
-                "evidence_summary": "<MAX 250 words, single paragraph, written for a general audience with no technical or internal scoring terminology>"
+                "evidence_summary": "<MAX 500 words, single paragraph, written for a general audience with no technical or internal scoring terminology>"
                 "source": "<Tier 5-7 sources prioritized>",
                 "cross_pillar_patterns": "<MAX 200 words, ASCII only : systemic observations>",
                 "institutional_capacity": "<MAX 200 words, ASCII only : governance quality assessment>",
