@@ -71,7 +71,7 @@ class Settings:
     CHUNK_OVERLAP: int = 50
     TOP_K_RESULTS: int = 5
     LLM_TEMPERATURE: float = 0.1
-    LLM_MAX_TOKENS: int = 4000
+    LLM_MAX_TOKENS: int = 5000
     
     # ---------------------------
     # Scoring

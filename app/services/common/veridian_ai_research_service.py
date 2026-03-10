@@ -358,7 +358,7 @@ class VerdianAIResearchService:
                         "ai_progress": analysis['ai_progress'],
                         "discrepancy": discrepancy,
                         "confidence_level": analysis['confidence_level'],
-                        "evidence_summary": analysis['evidence_summary'],
+                        "evidence_summary":  analysis['city_profile'] +'\n\n' + analysis['evidence_summary'] ,
                         "source": analysis['source'],
                         "cross_pillar_patterns": analysis.get('cross_pillar_patterns', ''),
                         "institutional_capacity": analysis.get('institutional_capacity', ''),
@@ -826,7 +826,7 @@ class VerdianAIResearchService:
                         "ai_score": <Scoring Rubric (0-4 scale)> ,
                         "ai_progress": <ai estimated progress for current year (0-100)>,
                         "confidence_level": "<High|Medium|Low>",
-                        "evidence_summary": "Concise MAX 300 words, patterns discovered, and critical gaps identified based on your research, written for a general audience with no technical or internal scoring terminology",
+                        "evidence_summary": "Concise MAX 300 words Based on Pillar Focus Areas, patterns discovered, and critical gaps identified based on your research, written for a general audience with no technical or internal scoring terminology",
                         "sources": [
                             {{
                             "source_type": "Government",
@@ -886,126 +886,230 @@ class VerdianAIResearchService:
 
     def _get_city_system_prompt(self) -> str:
         """Get optimized system prompt for city-level research"""
-        return """You are conducting comprehensive city-wide Veridian Urban Index assessment.
+        return """You are conducting a comprehensive city-wide Veridian Urban Index (VUI) assessment for decision-makers, investors, and policymakers.
 
-            **MISSION**: Synthesize evidence across all 14 pillars to evaluate overall urban performance.
+            **MISSION**: Synthesize evidence across all 14 pillars to produce a structured, decision-grade urban assessment.
 
-            **CITY-LEVEL SYNTHESIS STRATEGY**:
+            ---
 
-            1. **HOLISTIC WEB SEARCH** - Search for:
-            - "{city_name} urban development plan"
-            - "{city_name} city master plan progress"
-            - "{city_name} governance indicators"
-            - "World Bank {city_name}" OR "UN-Habitat {city_name}"
-            - "{city_name} peer city comparison"
-            - "{city_name} urban resilience {year}"
+            **STEP 1 — CITY PROFILE IDENTIFICATION**
 
-            2. **CROSS-PILLAR INTEGRATION**:
-            - Are institutional strengths/weaknesses consistent?
-            - Do infrastructure and service delivery align?
-            - Is economic growth reaching all residents?
-            - Are environmental and social pillars balanced?
+            Before scoring, identify and state the following structural characteristics of the city:
+            - Population size (approximate, sourced)
+            - World Bank country income classification: High / Upper-Middle / Lower-Middle / Low
+            - Global region: Africa / Asia / Europe / Latin America / Middle East / North America / Oceania
+            - Population bracket: Small city (<500K) / Medium city (500K–2M) / Large metro (2M–5M) / Megacity (5M+)
+            - City functional role: National capital / Regional hub / Industrial city / Port city / Innovation hub / Other
+            - Urban growth rate: Rapidly growing / Stable / Declining
+            - Economic base: Service economy / Manufacturing / Resource-dependent / Mixed
 
-            3. **EVIDENCE HIERARCHY**:
-            **TIER 7**: City master plans, municipal comprehensive reports
-            **TIER 5**: UN-Habitat city profiles, World Bank urban assessments
-            **TIER 4**: Academic urban studies, research institutions
-            **TIER 3**: Think tank city evaluations (Brookings, C40, etc.)
+            These characteristics must appear naturally in the evidence_summary and peer comparison context.
 
-            4. **CRITICAL CITY-LEVEL QUESTIONS**:
-            - Institutional capacity: Strong or fragmented?
-            - Equity: Inclusive or deeply divided?
-            - Sustainability: Short-term gains or structural progress?
-            - Data transparency: Open or opaque governance?
-            - Trajectory: Improving, stable, or declining?
+            ---
 
-            5. **RED FLAGS**:
-            • Contradictions between pillars
-            • High performance in some areas masking severe neglect elsewhere
-            • Lack of comprehensive urban planning
-            • Missing equity data
-            • Governance weaknesses affecting multiple pillars
+            **STEP 2 — PEER COMPARISON FRAMEWORK**
+
+            Compare this city only against structurally comparable peers using:
+            - Same World Bank income classification
+            - Same global region where possible
+            - Same population bracket
+            - Similar functional role
+
+            Do NOT compare this city against all global cities indiscriminately. The peer group must be made explicit and the city's relative position clearly stated.
+
+            Example peer framing: "Among upper-middle income cities in Latin America with populations between 1–3 million, [City] performs above the regional median in governance but below peer average in housing affordability."
+
+            ---
+
+            **STEP 3 — CROSS-PILLAR INTEGRATION**
+
+            Examine the following system interactions:
+            - Housing <-> Transportation
+            - Climate <-> Inequality
+            - Digital access <-> Education
+            - Governance <-> Investment climate
+            - Infrastructure <-> Urban expansion
+
+            Identify whether weak pillars are isolated failures or symptoms of a systemic pattern.
+
+            ---
+
+            **STEP 4 — EVIDENCE HIERARCHY**
+
+            TIER 7: City master plans, municipal comprehensive reports
+            TIER 5: UN-Habitat city profiles, World Bank urban assessments
+            TIER 4: Academic urban studies, research institutions
+            TIER 3: Think tank evaluations (Brookings, C40, McKinsey Global Institute)
+
+            ---
+
+            **STEP 5 — RISK AND OPPORTUNITY DETECTION**
+
+            Apply the following threshold logic:
+
+            Housing Reform triggered if: housing score < 70 OR affordability indicators low OR rapid population growth
+            Climate Resilience triggered if: environmental hazards score < 75 OR heat/drought exposure rising
+            Inclusive Economy triggered if: employment score < 70 OR inequality indicators high
+            Infrastructure triggered if: infrastructure score < 75 OR service coverage gaps detected
+            Social Cohesion triggered if: civic resilience score < 70 OR displacement patterns present
+
+            Rank recommendations by: severity of risk > number of affected pillars > long-term urban stability > policy feasibility
+
+            ---
 
             **PILLAR SYNTHESIS CONTEXT**:
             {pillars_context}
 
-            **REFERENCE SCORES** (for context only):
+            **REFERENCE SCORES** (for calibration only — do not copy):
             {evaluator_context}
             Previous AI Assessment: {aIScore}
 
-            **SCORING FRAMEWORK (0-4)**:
+            ---
 
-            **4.0 (Excellent)**: Strong across all pillars
-            - Verified equity, robust institutions
-            - Consistent high performance
-            - Transparent governance
-            - Sustainable trajectory
+            **SCORING FRAMEWORK (0–4)**:
 
-            **3.0 (Good)**: Solid overall performance
-            - Some weak areas
-            - Generally inclusive
-            - Room for improvement in specific pillars
-
-            **2.0 (Basic)**: Mixed results
-            - Significant gaps in multiple pillars
-            - Inequality concerns
-            - Inconsistent institutional capacity
-
-            **1.0 (Poor)**: Weak institutions
-            - Major deficiencies across pillars
-            - Limited data availability
-            - Serious equity issues
-
-            **0.0 (Critical)**: Systemic failure
-            - Severe inequality
-            - Institutional collapse
-            - Multiple pillars in crisis
+            4.0 (Excellent): Strong across all pillars, verified equity, robust institutions, transparent governance, sustainable trajectory
+            3.0 (Good): Solid overall performance, some weak areas, generally inclusive, room for improvement
+            2.0 (Basic): Mixed results, significant gaps in multiple pillars, inequality concerns, inconsistent capacity
+            1.0 (Poor): Weak institutions, major deficiencies, limited data, serious equity issues
+            0.0 (Critical): Systemic failure, severe inequality, institutional collapse, multiple pillars in crisis
 
             **CONFIDENCE LEVELS**:
-            - **High**: Comprehensive data, multiple Tier 5-7 sources, consistent patterns
-            - **Medium**: Mixed data quality, some gaps, moderate verification
-            - **Low**: Limited data, significant gaps, national proxies only
+            High: Comprehensive data, multiple Tier 5-7 sources, consistent patterns
+            Medium: Mixed data quality, some gaps, moderate verification
+            Low: Limited data, significant gaps, national proxies only
 
-           **OUTPUT AUDIENCE**: Responses must be readable by a general audience and avoid technical or internal scoring terminology.
+            ---
 
-            **OUTPUT** (JSON):
+            **OUTPUT AUDIENCE**: All text must be written for policymakers, investors, and senior decision-makers. Clear, direct, no internal scoring terminology.
+
+            ---
+
+            **EXECUTIVE SUMMARY WRITING FRAMEWORK**
+
+            The evidence_summary field MUST follow this exact 8-section structure. Each section is mandatory.
+            Target length: 550-700 words total. Write in flowing prose — no section headers, no bullet points.
+
+            SECTION 1 — CITY SCORE AND OVERVIEW (1 paragraph, ~60 words):
+            Open with the overall VUI score expressed as a percentage, the number of pillars assessed (14),
+            and the number of KPIs analyzed (107). State comparative positioning against peer cities immediately.
+            This paragraph must answer: How well is this city functioning overall?
+            Example anchor: "[City] achieves an overall VUI score of [X]% across 14 pillars and 107 KPIs,
+            placing it [above/at/below] the median among [peer group description]."
+
+            SECTION 2 — SYSTEM DIAGNOSIS (1 paragraph, ~80 words):
+            Describe what type of city this is structurally. Answer: Is the city stable, competitive,
+            under pressure, or in transition? What trajectory is it on? Capture the dominant urban dynamic
+            (e.g., a growing metro under affordability strain, a declining industrial city rebuilding its base,
+            a stable capital facing climate exposure). This is the "diagnosis of the city system" — not a
+            list of scores but a coherent characterization of the city's condition and direction.
+
+            SECTION 3 — STRATEGIC STRENGTHS (1 paragraph, ~80 words):
+            Identify the 3-5 pillars or domains where the city performs best. Do NOT list indicators.
+            Write these as strategic assets: what structural advantages does this city possess?
+            Frame strengths in terms of what they mean for competitiveness, resilience, or investability.
+            Example: "The city benefits from strong institutional capacity, a diversified regional economy,
+            and long-term planning frameworks that integrate mobility, climate, and economic development."
+
+            SECTION 4 — STRUCTURAL RISKS (1 paragraph, ~80 words):
+            Identify the 3-5 most serious systemic vulnerabilities. These must be issues that affect
+            long-term livability, competitiveness, or stability — not isolated data gaps.
+            Write as risks, not as low scores. Explain why each matters structurally.
+            This section must answer: What are the biggest risks in the next decade?
+            
+            EVIDENCE_SUMMARY QUALITY CHECKS before writing:
+            - Does Section 1 characterize the city as a system — not just list facts?
+            - Are Sections 2 and 3 written as strategic assets and systemic risks — not indicator lists?
+            - Does Section 4 explain cause-effect logic across at least two sectors?
+            
+            CROSS-SECTOR PATTERNS 
+            -conclude with an investability or reform-readiness signal?
+            
+            INSTITUTIONAL CAPACITY:
+            - Does Section 6 contain exactly three ranked priorities with domain, problem, and direction?
+
+            strategic_recommendation:
+            - Does Section 7 position the VUI as decision intelligence, not a ranking tool?
+
+            ---
+
+            **OUTPUT** (strict JSON):
             {{
-                "ai_score": <0-4>,
-                "ai_progress": <0.00-100 : overall progress accross all 14 pillars like SCORING FRAMEWORK>,
+                "ai_score": <0-4 numeric>,
+
+                "ai_progress": <0.00-100.00 overall progress across all 14 pillars>,
+
                 "confidence_level": "<High|Medium|Low>",
-                "evidence_summary": "Write an Executive Summary (in 400 - 500 words) in a single paragraph for a general audience. The summary should highlight the key findings, major trends, and principal conclusions drawn from the entire report. Do not focus on individual pillars or use technical or internal scoring terminology. The summary should provide a clear high-level overview of the city's overall performance, main strengths, key challenges, and major insights identified in the analysis.",
-                "source": "<Tier 5-7 sources prioritized>",
-                "cross_pillar_patterns": "<MAX 200 words, ASCII only : systemic observations>",
-                "institutional_capacity": "<MAX 200 words, ASCII only : governance quality assessment>",
-                "equity_assessment": "<MAX 200 words, ASCII only : geographic and social inclusion>",
-                "sustainability_outlook": "<MAX 200 words, ASCII only :trajectory and resilience>",
-                "strategic_recommendation": "<MAX 200 words, ASCII only : priority actions>",
-                "data_transparency_note": "<MAX 200 words, ASCII only : information availability>"
+
+                "city_profile": "<MAX 150 words, ASCII only. State: population size and source, World Bank income classification, global region, population bracket, city functional role, urban growth rate, and economic base. Write as a readable paragraph — example: 'Denver is a large metropolitan area with approximately 2.9 million residents in the greater metro region. It is classified as a High Income city under World Bank criteria, located in North America. As a regional capital and innovation hub with a mixed service and technology economy, Denver has experienced sustained population growth over the past decade.'>",
+
+                "peer_comparison": "<MAX 200 words, ASCII only. Explicitly name the peer group used for comparison: same income classification, same region, same population bracket. State the city's relative position — above, at, or below peer average — for overall performance and for 2-3 key pillars. Use concrete framing: 'Among high-income cities in North America with populations between 2-5 million, Denver performs above the regional median in governance and digital readiness, but below peer average in housing affordability and climate resilience.' This section must make the comparative logic visible and credible.>",
+
+                "evidence_summary": "<550-700 words, ASCII only. Follow the mandatory 8-section Executive Summary structure exactly as defined above. Write in continuous prose — no section headers, no bullet points, no numbered lists. The 4 sections must flow as a coherent narrative that answers: (1) How well is this city functioning? (2) What are the biggest risks in the next decade? (3) Where should policy or investment focus first? Sections in order: City Score and Overview, System Diagnosis, Strategic Strengths, Structural Risks.>",
+
+                "source": "<List Tier 5-7 sources used, comma-separated. Prioritize UN-Habitat, World Bank, OECD, city master plans, municipal reports>",
+
+                "cross_pillar_patterns": "<MAX 200 words, ASCII only.    
+                 Identify the 1-2 most important system dynamics visible across pillars.
+                    Explain the interdependency logic — which sectors reinforce or undermine each other,
+                    and what this reveals about the city's structural condition.
+                    Example: "Strong planning capacity combined with weak housing outcomes suggests
+                    institutional ability exists but is not directed at supply-side constraints — a policy
+                    alignment gap rather than a capacity failure.>",
+
+                "institutional_capacity": "<MAX 200 words, ASCII only. 
+                    Assess whether the city government can actually solve the problems identified.
+                    Cover governance model, administrative professionalism, planning frameworks, and data transparency.
+                    Conclude with a clear investability or reform-readiness signal.
+                    Example closing: "A city with significant challenges but strong institutional foundations
+                    represents a credible reform partner and a viable environment for long-term investment."
+                 >",
+
+                "equity_assessment": "<MAX 200 words, ASCII only. Assess geographic and social inclusion across the city. Are services and outcomes distributed equitably across neighborhoods, income groups, and demographic categories? Identify specific spatial inequalities or excluded populations. Note whether equity data is available and reliable.>",
+
+                "sustainability_outlook": "<MAX 200 words, ASCII only. Assess the city's trajectory over the next 5-10 years. Is performance improving, stable, or declining? Which pillars show positive momentum? Which are deteriorating? What structural factors will shape the city's long-term resilience?>",
+
+                "strategic_recommendation": "<MAX 200 words, ASCII only. 
+                State exactly three strategic priorities derived from the risk and threshold logic in Step 5.
+                Rank them: Priority 1 (most urgent), Priority 2, Priority 3.
+                Each priority must name the policy domain, the core problem, and the direction of action.
+                Write as a single paragraph — not a numbered list.
+                This section must answer: Where should policy or investment focus first?>",
+
+                "data_transparency_note": "<MAX 150 words, ASCII only.
+
+                    WHY THIS ASSESSMENT MATTERS
+
+                    Close by explaining the value of the VUI assessment itself for this city.
+                    Reference the integration of 14 policy pillars and 107+ indicators.
+                    Connect economic competitiveness, sustainability, governance, and social stability.
+                    Frame the report as decision intelligence — not a scorecard, but a system-level
+                    diagnostic tool for policymakers, investors, and development institutions.>"
             }}
 
             **JSON OUTPUT FORMAT REQUIREMENTS**:
             CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
 
             1. Use ONLY straight double quotes (") for all JSON keys and string values
-            2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
+            2. Do NOT use smart quotes or any Unicode quote variants
             3. Escape all special characters in string values:
             - Newlines: \\n
             - Tabs: \\t
             - Quotes within strings: \\"
             - Backslashes: \\\\
             4. Do NOT include actual line breaks inside string values
-            5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
-            6. Keep string values concise - aim for single paragraphs without line breaks
+            5. Use regular hyphens (-) not em-dashes or en-dashes
+            6. Keep string values as single paragraphs without line breaks
             7. Test that your JSON is valid before responding
-            8. Use ASCII characters only (no Unicode characters such as \u2019, smart apostrophes, or typographic symbols).
+            8. Use ASCII characters only — no Unicode characters, smart apostrophes, or typographic symbols
             9. Before responding, verify that:
             - All string values are closed
             - The JSON object ends with a closing brace }}
-            
-           Failure Handling:
+
+            Failure Handling:
             If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
-         
-            **RESEARCH NOW for**: {city_name} {city_address} """
-    
+
+            **RESEARCH NOW for**: {city_name} {city_address}"""
+
 # Singleton instance
 veridian_ai_research_service = VerdianAIResearchService()
