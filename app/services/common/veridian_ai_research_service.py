@@ -674,11 +674,18 @@ class VerdianAIResearchService:
                 - Severe gaps with no contradicting evidence
                 - Critical institutional breakdown
                 - High-confidence evidence of poor performance
+                
+                - ** null (if NA or UnKnown)**: 
+                - null – Not applicable or no reliable evidence available.
+                - Provide null score if question is Not applicable for that city
+                - Provide null score if question is Unknown for that city
+
 
                 **CONFIDENCE LEVELS**:
                 - **High**: 3+ sources from Tiers 5-7, recent data, cross-verified, city-specific
                 - **Medium**: 2 sources from Tiers 4-6, OR recent national data, limited cross-verification
                 - **Low**: Single source, Tiers 1-3 only, outdated data, national-level only, or significant data gaps
+                -- If ai_score is null → confidence_level must be "NA" or "Unknown". 
 
                 **EVALUATOR CONTEXT** (if provided):
                 Human evaluator scored this as: {evaluator_score} and scoreProgress: {scoreProgress}%.
@@ -690,9 +697,9 @@ class VerdianAIResearchService:
                 You MUST return ONLY a single valid JSON object with this EXACT structure (no additional fields, no field suffixes like _2, _3, etc.):
                 
                 {{
-                    "ai_score": <0-4>,
+                    "ai_score": <0-4 || null>,
                     "ai_progress": <0.00-100>,
-                    "confidence_level": "<High|Medium|Low>",
+                    "confidence_level": "<High|Medium|Low | (NA | UnKnown if ai_score is null)>",
                     "evidence_summary": "<100-150 words summarizing key findings and rationale>",
                     "red_flag": "<10-150 words: any concerns found, or empty string if none>",
                     "geographic_equity_note": "<10-60 words: comment on inequality if detected, or empty string if none>",

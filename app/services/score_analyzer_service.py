@@ -45,6 +45,32 @@ class ScoreAnalyzerService:
         return 0.0
 
     @staticmethod
+    def to_float_none(value) -> float | None:
+        """Convert value to float safely. Returns None for invalid values."""
+
+        if value is None:
+            return None
+
+        try:
+            if isinstance(value, str):
+                s = value.strip().lower()
+
+                if s in {"", "null", "none", "nan", "inf", "-inf", "infinity", "-infinity"}:
+                    return None
+
+                value = float(s.replace(",", ""))
+
+            val = float(value)
+
+            if math.isnan(val) or math.isinf(val):
+                return None
+
+            return round(val, 2)
+
+        except (ValueError, TypeError):
+            return None
+    
+    @staticmethod
     def to_int_safe(value) -> int:
         """Convert value to int safely, returning 0 for invalid values"""
         if value is None:
@@ -170,7 +196,7 @@ class ScoreAnalyzerService:
             "PillarID": row.PillarID,
             "QuestionID": row.QuestionID,
             "Year": self.to_int_safe(ai_data["year"]),
-            "AIScore": self.to_float_safe(ai_data["ai_score"]),
+            "AIScore": self.to_float_none(ai_data["ai_score"]),
             "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
             "EvaluatorProgress": self.to_float_safe(normalized_value * 100),
             "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
