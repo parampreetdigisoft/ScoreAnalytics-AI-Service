@@ -245,7 +245,7 @@ class ScoreAnalyzerService:
                                 f"State :{city.State}, Country :{city.Country}",
                                 row.PillarID,
                                 row.PillarName,
-                                row.QuestionText,
+                                f" Question :{row.QuestionText}, Options :{row.Options}",
                                 row.ScoreProgress,
                                 round(normalized_value * 4.0),
                                 None
