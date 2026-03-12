@@ -999,9 +999,9 @@ class VerdianAIResearchService:
 
             SECTION 1 — CITY SCORE AND OVERVIEW (1 paragraph, ~60 words):
             Open with the overall VUI score expressed as a percentage, the number of pillars assessed (14),
-            and the number of KPIs analyzed (107). State comparative positioning against peer cities immediately.
+            and the number of KPIs analyzed (109). State comparative positioning against peer cities immediately.
             This paragraph must answer: How well is this city functioning overall?
-            Example anchor: "[City] achieves an overall VUI score of [X]% across 14 pillars and 107 KPIs,
+            Example anchor: "[City] achieves an overall VUI score of [X]% across 14 pillars and 109 KPIs,
             placing it [above/at/below] the median among [peer group description]."
 
             SECTION 2 — SYSTEM DIAGNOSIS (1 paragraph, ~80 words):
@@ -1088,7 +1088,7 @@ class VerdianAIResearchService:
                     WHY THIS ASSESSMENT MATTERS
 
                     Close by explaining the value of the VUI assessment itself for this city.
-                    Reference the integration of 14 policy pillars and 107+ indicators.
+                    Reference the integration of 14 policy pillars and 109 indicators.
                     Connect economic competitiveness, sustainability, governance, and social stability.
                     Frame the report as decision intelligence — not a scorecard, but a system-level
                     diagnostic tool for policymakers, investors, and development institutions.>"
