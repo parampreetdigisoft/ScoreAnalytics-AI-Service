@@ -111,6 +111,10 @@ class VerdianAIResearchService:
                             "evaluator_context": evaluator_context
                         })
                         
+                        if not result or result.strip() == "{}":
+                            continue  # retry
+
+
                         # Parse and validate response
                         cleaned = self._clean_json_response(result)
                         analysis = self._validate_question_response(json.loads(cleaned))
@@ -241,6 +245,9 @@ class VerdianAIResearchService:
                         "evaluator_context": evaluator_context
                     })
                     
+                    if not result or result.strip() == "{}":
+                        continue  # retry
+                
                     # Parse and validate
                     cleaned = self._clean_json_response(result)
                     analysis = self._validate_pillar_response(json.loads(cleaned))
@@ -341,7 +348,10 @@ class VerdianAIResearchService:
                         "aIScore":aIScore if aIScore else "Not provided",
                         "evaluator_context": evaluator_context
                     })
-                    
+
+                    if not result or result.strip() == "{}":
+                        continue  # retry
+
                      # Parse and validate
                     cleaned = self._clean_json_response(result)
                     analysis = self._validate_city_response(json.loads(cleaned))
@@ -673,12 +683,66 @@ class VerdianAIResearchService:
                 - **0 (Critical)**: Tier 5+ sources document systemic failure OR
                 - Severe gaps with no contradicting evidence
                 - Critical institutional breakdown
-                - High-confidence evidence of poor performance
-                
-                - ** null (if NA or UnKnown)**: 
-                - null – Not applicable or no reliable evidence available.
-                - Provide null score if question is Not applicable for that city
-                - Provide null score if question is Unknown for that city
+                - High-confidence evidence of poor performance                
+
+
+                **N/A (Not Applicable) — STRUCTURAL ONLY**
+                Assign **null (N/A)** ONLY when:
+                - The indicator is **structurally impossible** for the city
+                - The system being evaluated **cannot logically exist**
+
+                Examples:
+                - Maritime port indicator for a landlocked city with no inland port system
+
+                Rules:
+                - Must pass **Applicability Verification**
+                - Cannot be due to:
+                - Missing data
+                - Lack of documentation
+                - Difficulty in finding evidence
+
+                **Unknown — LAST RESORT ONLY**
+                Assign **null (Unknown)** ONLY AFTER ALL steps below fail:
+
+                1. Primary evidence search (city data, reports, official sources)
+                2. Secondary evidence search (national/global datasets, research)
+                3. Proxy indicator analysis
+                4. Cross-indicator inference
+                5. Contextual/national system inference
+
+                Conditions:
+                - No direct, indirect, or proxy evidence available
+                - Existence of the system itself cannot be determined
+                - No reasonable inference possible
+
+                **MANDATORY FALLBACK BEFORE UNKNOWN**
+
+                If ANY signal exists:
+                - Assign **minimum score (1 or 2)** instead of Unknown
+
+                Examples:
+                - System likely exists → assign **1 (Poor)**
+                - Partial/proxy evidence → assign **2 (Basic)**
+
+
+                **PROHIBITIONS**
+
+                - Do NOT assign N/A if the indicator could logically apply
+                - Do NOT assign Unknown without completing full evaluation sequence
+                - Do NOT skip scoring due to incomplete data
+                - Do NOT default to null when inference is possible
+
+                **EVIDENCE LOGGING (REQUIRED)**
+
+                For every **Unknown**:
+                - Log:
+                - Sources checked
+                - Methods attempted (proxy, inference, etc.)
+                - Reason scoring was not possible
+
+                For every **N/A**:
+                - Log:
+                - Structural justification for non-applicability
 
 
                 **CONFIDENCE LEVELS**:
@@ -733,6 +797,8 @@ class VerdianAIResearchService:
                         
                     Failure Handling:
                         If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
+                        
+                Return ONLY a single JSON object
 
                 **RESEARCH NOW for**: {city_name} {city_address}
                 Question: {question_text}
