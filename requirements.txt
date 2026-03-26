@@ -27,6 +27,17 @@
 # taskkill /IM python.exe /F
 
 
+# If You Ever Need to Restart After Code Changes
+# $nssm = "C:\nssm\win64\nssm.exe"
+
+# # After pulling new code / changing .env
+# & $nssm restart ScoreAnalyticsAI
+
+# # Confirm it came back up
+# Invoke-WebRequest http://127.0.0.1:8000/health
+
+
+
 # Core API Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
