@@ -1064,11 +1064,17 @@ class VerdianAIResearchService:
             Target length: 550-700 words total. Write in flowing prose — no section headers, no bullet points.
 
             SECTION 1 — CITY SCORE AND OVERVIEW (1 paragraph, ~60 words):
-            Open with the overall VUI score expressed as a percentage, the number of pillars assessed (14),
-            and the number of KPIs analyzed (109). State comparative positioning against peer cities immediately.
-            This paragraph must answer: How well is this city functioning overall?
-            Example anchor: "[City] achieves an overall VUI score of [X]% across 14 pillars and 109 KPIs,
-            placing it [above/at/below] the median among [peer group description]."
+            You MUST begin the paragraph using the EXACT sentence structure below. Do not change wording, order, or phrasing except for placeholders:
+            "[City] achieves an overall VUI score of __SCORE__ percent across 14 pillars and 110 KPIs, placing it [above/at/below] the median among [peer group description]."
+            Rules:
+            - The phrase "percent across 14 pillars" MUST appear exactly as written.
+            - Do NOT omit, rephrase, or move "percent across 14 pillars".
+            - Do NOT modify the sentence structure and not repeat "percent across" word in the response mutiple time just once.
+            - Replace only the placeholders: [City], __SCORE__, [above/at/below], [peer group description].
+            - __SCORE__ must remain as-is (do NOT replace it with a number).
+            - After this sentence, continue naturally to complete a single paragraph (~60 words total).
+            The paragraph must clearly answer: How well is this city functioning overall?
+
 
             SECTION 2 — SYSTEM DIAGNOSIS (1 paragraph, ~80 words):
             Describe what type of city this is structurally. Answer: Is the city stable, competitive,
@@ -1154,7 +1160,7 @@ class VerdianAIResearchService:
                     WHY THIS ASSESSMENT MATTERS
 
                     Close by explaining the value of the VUI assessment itself for this city.
-                    Reference the integration of 14 policy pillars and 109 indicators.
+                    Reference the integration of 14 policy pillars and 110 indicators.
                     Connect economic competitiveness, sustainability, governance, and social stability.
                     Frame the report as decision intelligence — not a scorecard, but a system-level
                     diagnostic tool for policymakers, investors, and development institutions.>"
