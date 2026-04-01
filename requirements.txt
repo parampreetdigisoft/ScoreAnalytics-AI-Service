@@ -31,9 +31,11 @@
 # $nssm = "C:\nssm\win64\nssm.exe"
 
 # # Restrart nssm
-# nssm.exe stop ScoreAnalyticsAI
-# nssm.exe start ScoreAnalyticsAI
+# cd C:\nssm\win64
+# .\nssm.exe stop ScoreAnalyticsAI
+# .\nssm.exe start ScoreAnalyticsAI
 
+# .\nssm.exe restart ScoreAnalyticsAI
 
 
 # Core API Framework

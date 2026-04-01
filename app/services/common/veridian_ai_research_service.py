@@ -1065,13 +1065,11 @@ class VerdianAIResearchService:
 
             SECTION 1 — CITY SCORE AND OVERVIEW (1 paragraph, ~60 words):
             You MUST begin the paragraph using the EXACT sentence structure below. Do not change wording, order, or phrasing except for placeholders:
-            "[City] achieves an overall VUI score of __SCORE__ percent across 14 pillars and 110 KPIs, placing it [above/at/below] the median among [peer group description]."
+            "[City] achieves an overall VUI score of [X]% percent across 14 pillars and 110 KPIs, placing it [above/at/below] the median among [peer group description]."
             Rules:
             - The phrase "percent across 14 pillars" MUST appear exactly as written.
             - Do NOT omit, rephrase, or move "percent across 14 pillars".
             - Do NOT modify the sentence structure and not repeat "percent across" word in the response mutiple time just once.
-            - Replace only the placeholders: [City], __SCORE__, [above/at/below], [peer group description].
-            - __SCORE__ must remain as-is (do NOT replace it with a number).
             - After this sentence, continue naturally to complete a single paragraph (~60 words total).
             The paragraph must clearly answer: How well is this city functioning overall?
 
