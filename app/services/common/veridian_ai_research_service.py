@@ -271,6 +271,7 @@ class VerdianAIResearchService:
                         "geographic_equity_note": analysis.get('geographic_equity_note', ''),
                         "institutional_assessment": analysis.get('institutional_assessment', ''),
                         "data_gap_analysis": analysis.get('data_gap_analysis', ''),
+                        "analyst_data_gap_analysis": analysis.get('analyst_data_gap_analysis', ''),
                         "year": year,
                         "timestamp": datetime.now().isoformat()
                     }
@@ -921,7 +922,16 @@ class VerdianAIResearchService:
                         "red_flag": "Concise 150-200 words Description of any systemic concerns, contradictions, or warning signs identified ",
                         "geographic_equity_note": "Concise 150-200 words Assessment of whether services/outcomes are equitably distributed across the city",
                         "institutional_assessment": " Concise 150-200 words Evaluation of government capacity, governance quality, and institutional effectiveness",
-                        "data_gap_analysis": "Generate a 150–200 word paragraph for the 'Analytical Foundations and Data Integration' section that explains the major data gaps encountered during the research, including missing datasets, limited city-level indicators, and areas where publicly available information was insufficient."
+                        "data_gap_analysis": "Generate a 150–200 word paragraph for the 'Analytical Foundations and Data Integration' section that explains the major data gaps encountered during the research, including missing datasets, limited city-level indicators, and areas where publicly available information was insufficient.",
+
+                        "analyst_data_gap_analysis": "<Generate a 150–200 word paragraph for the 'Analytical Foundations and Data Integration' section, tailored to this city and the pillar. The paragraph must reflect a disciplined approach to data integration using four evidence streams: publicly available data, academic literature, key informant interviews, and community or focus group insights.
+
+                        Explain how these sources were applied in this pillar context and triangulated to validate findings and address gaps. Highlight key data limitations such as missing or outdated datasets, weak city-level disaggregation, or inconsistencies across sources. Describe how qualitative inputs helped interpret or challenge quantitative data, especially where official records were incomplete.
+
+                        Clearly distinguish between verified evidence, informed inference, and contested findings, and link evidence to scoring logic. Conclude by noting how data gaps influence confidence levels.
+
+                        Ensure the writing is natural, varies across responses, and avoids repetitive or template-like phrasing.>"
+                                
                         }}
 
                         **CRITICAL RULES:**

@@ -442,7 +442,8 @@ class DatabaseService:
                 "RedFlags",
                 "GeographicEquityNote",
                 "InstitutionalAssessment",
-                "DataGapAnalysis"
+                "DataGapAnalysis",
+                "AnalystDataGapAnalysis"
             ]]
 
             score_records = list(score_df.itertuples(index=False, name=None))

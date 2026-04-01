@@ -329,7 +329,8 @@ class ScoreAnalyzerService:
                             "RedFlags": ai_data.get('red_flag', ''),
                             "GeographicEquityNote": ai_data['geographic_equity_note'],
                             "InstitutionalAssessment": ai_data['institutional_assessment'],
-                            "DataGapAnalysis": ai_data['data_gap_analysis']
+                            "DataGapAnalysis": ai_data['data_gap_analysis'],
+                            "AnalystDataGapAnalysis": ai_data['analyst_data_gap_analysis']
                         })
 
                         if len(pillarList) == 5:
