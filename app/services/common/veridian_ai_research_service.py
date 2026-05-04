@@ -813,75 +813,151 @@ class VerdianAIResearchService:
                         **YOUR MISSION:**
                         Research and synthesize evidence across all aspects of this urban pillar and provide a verifiable score (0-4) with clear justification.
 
+                        The scoring system MUST combine:
+                        1. Structural and institutional indicators
+                        2. Historical and validated datasets
+                        3. Real-time and near real-time dynamic signals
+
+                        Static indicators alone are NOT sufficient to detect rapidly emerging risks. You must explicitly assess current disruptions, sentiment shifts, escalation patterns, and fast-moving developments using verified live information sources.
+
                         **RESEARCH REQUIREMENTS:**
 
                         1. **Search Strategy** - You MUST search for:
+
+                        **Core Structural Sources**
                         - Official city/municipal data: "{city_name} {pillar_name} official statistics"
                         - Government reports: "{city_name} government {pillar_name} report"
                         - International data: "World Bank {city_name}" OR "UN-Habitat {city_name}"
                         - Academic research: "{city_name} {pillar_name} peer-reviewed study"
                         - Recent news: "{city_name} {pillar_name} {year}"
 
+                        **Dynamic Real-Time Sources**
+                        - Breaking developments: "{city_name} {pillar_name} latest news"
+                        - Social sentiment trends: "{city_name} protests complaints reactions social media"
+                        - Incident/event monitoring: "{city_name} disruption unrest outage strike violence emergency"
+                        - Local public discourse: city forums, verified public posts, reputable civic reporting
+                        - Rapid updates from credible journalists, agencies, and institutions
+
                         2. **Source Quality Hierarchy (Trustworthy Source Chain)**:
-                        - **TIER 7** (Strongest): Official city government portals, municipal databases, city statistics
-                        - **TIER 6**: Government audit reports, ombudsman data, regulatory oversight
-                        - **TIER 5**: UN agencies (UN-Habitat, WHO, UNESCO), World Bank, OECD reports
-                        - **TIER 4**: Peer-reviewed academic journals, university research centers
-                        - **TIER 3**: Established NGOs (Transparency International, Human Rights Watch)
-                        - **TIER 2**: Private sector reports (utilities, telecom companies)
-                        - **TIER 1**: News media (for context only, NOT primary evidence)
+
+                        **TIER 7** (Strongest):
+                        Official city government portals, municipal databases, city statistics
+
+                        **TIER 6**:
+                        Government audit reports, ombudsman data, regulators, emergency agencies
+
+                        **TIER 5**:
+                        UN agencies, World Bank, OECD, recognized multilateral institutions
+
+                        **TIER 4**:
+                        Peer-reviewed journals, universities, research institutes
+
+                        **TIER 3**:
+                        Established NGOs, watchdog groups, civic observatories
+
+                        **TIER 2**:
+                        Private sector reports, utilities, telecoms, verified platform analytics
+
+                        **TIER 1**:
+                        News media, verified journalists, validated social media signals (context only unless corroborated)
 
                         3. **VERIFICATION STANDARDS**:
+
                         - Find AT LEAST 2 independent sources (preferably Tier 5-7)
                         - Prioritize: City-specific data > National averages
-                        - Prioritize: Recent data (within 1 years) > Old data
-                        - Prioritize: Structural metrics > Perception surveys
+                        - Prioritize: Recent data (within 1 year) > Old data
+                        - Prioritize: Verified evidence > rumor/speculation
+                        - Prioritize: Structural metrics + live signals together
                         - Check for geographic inequality within the city
+                        - Cross-check dynamic claims with at least one credible secondary source where possible
 
-                        4. **Red Flags to Identify**:
+                        4. **REAL-TIME SIGNAL ANALYSIS (MANDATORY):**
+
+                        You MUST treat real-time signals as a separate analytical layer.
+
+                        Evaluate:
+                        - Sudden protests, unrest, violence, strikes, shutdowns
+                        - Rapid sentiment deterioration or panic signals
+                        - Service failures, outages, infrastructure disruptions
+                        - Governance scandals or emergency incidents
+                        - Sharp spikes in complaints or grievances
+                        - Escalation patterns over recent days/weeks
+
+                        Apply filtering to distinguish:
+                        - Credible evidence vs misinformation
+                        - Coordinated manipulation vs organic concern
+                        - Isolated incidents vs persistent trends
+                        - Media amplification vs genuine deterioration
+
+                        Real-time findings MAY influence:
+                        - ai_score (moderately when evidence is strong)
+                        - ai_progress
+                        - confidence_level
+                        - red_flag warnings
+                        - early warning interpretation
+
+                        Real-time noise MUST NOT override strong structural evidence without verification.
+
+                        5. **Red Flags to Identify**:
+
                         - Missing data in politically sensitive areas
-                        - Claims of "perfect" performance without evidence
+                        - Claims of perfect performance without evidence
                         - CBD showcase areas vs neglected periphery
                         - Outdated data presented as current
                         - Contradictions between official claims and credible reports
+                        - Real-time unrest not reflected in official reporting
+                        - Sudden negative sentiment spikes
+                        - Repeated incidents suggesting escalation
 
-                        5. **Scoring Rubric (0-4 scale)**:
+                        6. **Scoring Rubric (0-4 scale):**
 
                         **4.0 (Excellent)**:
                         - Multiple Tier 5-7 sources confirm strong performance
-                        - Recent verified data (≤2 years old)
-                        - Evidence of equity across city geography
-                        - Sustained positive trends over time
-                        - Strong institutional capacity documented
+                        - Recent verified data
+                        - Strong institutions and resilient real-time environment
+                        - No significant live disruptions
+                        - Sustained positive trend
 
                         **3.0 (Good)**:
                         - Solid evidence from Tier 4-6 sources
-                        - Generally positive indicators with some limitations
-                        - Minor data gaps but overall strong performance
-                        - Some room for improvement identified
+                        - Generally positive indicators
+                        - Minor issues or isolated live disruptions
+                        - Manageable risks
 
                         **2.0 (Basic/Adequate)**:
-                        - Mixed evidence or limited data availability
-                        - Inconsistent performance across indicators
-                        - Significant gaps in service coverage or equity
-                        - Concerns about sustainability
+                        - Mixed evidence or limited data
+                        - Uneven performance
+                        - Noticeable service or governance gaps
+                        - Recurrent live stress signals
 
                         **1.0 (Poor)**:
-                        - Weak evidence OR clear deficiencies documented
+                        - Weak evidence OR clear deficiencies
                         - Major institutional gaps
-                        - Significant inequity or service failures
-                        - Contradictory or unreliable data
+                        - Significant inequity
+                        - Serious current disruptions or rising instability
 
                         **0.0 (Critical Failure)**:
-                        - Tier 5+ sources document systemic failure
-                        - Severe gaps with strong evidence
-                        - Critical institutional breakdown
-                        - High-confidence evidence of very poor performance
+                        - Systemic failure documented by credible evidence
+                        - Severe breakdowns
+                        - High-confidence evidence of crisis conditions
+                        - Major escalating live risks
 
-                        6. **Confidence Assessment**:
-                        - **High Confidence**: 3+ sources from Tiers 5-7, recent city-specific data, cross-verified
-                        - **Medium Confidence**: 2 sources from Tiers 4-6, OR national data applied locally
-                        - **Low Confidence**: Single source, Tiers 1-3 only, outdated data, or major data gaps
+                        7. **Confidence Assessment**:
+
+                        **High Confidence**
+                        - 3+ strong sources
+                        - Recent city-specific data
+                        - Dynamic signals corroborated
+
+                        **Medium Confidence**
+                        - 2 moderate sources
+                        - Partial city evidence
+                        - Mixed real-time verification
+
+                        **Low Confidence**
+                        - Sparse evidence
+                        - Outdated or contradictory data
+                        - Unverified live claims
 
                         **CONTEXT PROVIDED:**
 
@@ -897,74 +973,59 @@ class VerdianAIResearchService:
                         You MUST return ONLY valid JSON in this exact structure (no markdown, no explanations):
 
                         {{
-                        "ai_score": <Scoring Rubric (0-4 scale)> ,
-                        "ai_progress": <ai estimated progress for current year (0-100)>,
+                        "ai_score": <Scoring Rubric (0-4 scale)>,
+                        "ai_progress": <0-100>,
                         "confidence_level": "<High|Medium|Low>",
-                        "evidence_summary": "Concise MAX 300 words Based on Pillar Focus Areas, patterns discovered, and critical gaps identified based on your research, written for a general audience with no technical or internal scoring terminology",
+                        "evidence_summary": "Concise MAX 300 words written for a general audience. Include structural findings and current/emerging issues where relevant.",
                         "sources": [
                             {{
                             "source_type": "Government",
-                            "source_name": "City Department of X",
-                            "source_url": "https://example.com/report",
+                            "source_name": "City Department",
+                            "source_url": "https://example.com",
                             "data_year": 2025,
                             "trust_level": 7,
-                            "data_extract": "Concise 10-200 words : Specific finding or data point from this source"
+                            "data_extract": "Specific verified finding"
                             }},
                             {{
-                            "source_type": "International",
-                            "source_name": "World Bank",
-                            "source_url": "https://worldbank.org/data",
-                            "data_year": 2025,
-                            "trust_level": 5,
-                            "data_extract": "Concise 10-200 words : Another specific data point"
+                            "source_type": "News",
+                            "source_name": "Credible Outlet",
+                            "source_url": "https://example.com",
+                            "data_year": 2026,
+                            "trust_level": 1,
+                            "data_extract": "Recent development relevant to pillar"
                             }}
                         ],
-                        "red_flag": "Concise 150-200 words Description of any systemic concerns, contradictions, or warning signs identified ",
-                        "geographic_equity_note": "Concise 150-200 words Assessment of whether services/outcomes are equitably distributed across the city",
-                        "institutional_assessment": " Concise 150-200 words Evaluation of government capacity, governance quality, and institutional effectiveness",
-                        "data_gap_analysis": "Generate a 150–200 word paragraph for the 'Analytical Foundations and Data Integration' section that explains the major data gaps encountered during the research, including missing datasets, limited city-level indicators, and areas where publicly available information was insufficient.",
-
-                        "analyst_data_gap_analysis": "<Generate a 150–200 word paragraph for the 'Analytical Foundations and Data Integration' section, tailored to this city and the pillar. The paragraph must reflect a disciplined approach to data integration using four evidence streams: publicly available data, academic literature, key informant interviews, and community or focus group insights.
-
-                        Explain how these sources were applied in this pillar context and triangulated to validate findings and address gaps. Highlight key data limitations such as missing or outdated datasets, weak city-level disaggregation, or inconsistencies across sources. Describe how qualitative inputs helped interpret or challenge quantitative data, especially where official records were incomplete.
-
-                        Clearly distinguish between verified evidence, informed inference, and contested findings, and link evidence to scoring logic. Conclude by noting how data gaps influence confidence levels.
-
-                        Ensure the writing is natural, varies across responses, and avoids repetitive or template-like phrasing.>"
-                                
+                        "red_flag": "150-200 words on systemic concerns, contradictions, current risks, or escalation signals.",
+                        "geographic_equity_note": "150-200 words on whether services/outcomes are fairly distributed.",
+                        "institutional_assessment": "150-200 words on governance capacity and effectiveness.",
+                        "data_gap_analysis": "150-200 words explaining missing datasets, weak disaggregation, or evidence limitations.",
+                        "analyst_data_gap_analysis": "150-200 words explaining triangulation across public data, academic literature, interviews, community insights, and dynamic real-time signals such as verified news and public sentiment."
                         }}
 
                         **CRITICAL RULES:**
+
                         - ai_score must be between 0 and 4
-                        - ai_progress = <pillar progress or can say ai_score for pillar between 0.00-100> 
-                        - Include AT LEAST 2 sources in the sources array
-                        - Each source must have all required fields
-                        
-                        **OUTPUT AUDIENCE**: Responses must be readable by a general audience and avoid technical or internal scoring terminology.
+                        - ai_progress must be between 0 and 100
+                        - Include 2 to 8 sources when available; if only 1 credible source exists, include it with a note that findings are partly derived from broader research
+                        - Include 1 to 2 recent sources when current risks are relevant
+                        - Reflect verified real-time risks in ai_score, ai_progress, and red_flag
+                        - Do not rely only on social media without verification
+                        - Keep output clear and readable for general audiences
 
-  
                         **JSON OUTPUT FORMAT REQUIREMENTS**:
-                        CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
 
-                        1. Use ONLY straight double quotes (") for all JSON keys and string values
-                        2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
-                        3. Escape all special characters in string values:
-                        - Newlines: \\n
-                        - Tabs: \\t
-                        - Quotes within strings: \\"
-                        - Backslashes: \\\\
-                        4. Do NOT include actual line breaks inside string values
-                        5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
-                        6. Keep string values concise - aim for single paragraphs without line breaks
-                        7. Test that your JSON is valid before responding
-                        8. Use ASCII characters only (no Unicode characters such as \u2019, smart apostrophes, or typographic symbols).
-                        9. Before responding, verify that:
-                        - All string values are closed
-                        - The JSON object ends with a closing brace }}
-                        
-                    Failure Handling:
-                        If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
+                        1. Use ONLY straight double quotes (")
+                        2. No smart quotes
+                        3. Escape special characters
+                        4. No actual line breaks inside string values
+                        5. Use regular hyphens only
+                        6. Keep values concise
+                        7. Ensure valid parseable JSON
+                        8. ASCII characters only
+                        9. Final object must close properly with }}
 
+                        Failure Handling:
+                        If response risks truncation or invalid JSON, return {{}} only.
                         """
 
     def _get_city_system_prompt(self) -> str:

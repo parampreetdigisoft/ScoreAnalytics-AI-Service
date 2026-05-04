@@ -27,6 +27,23 @@
 # taskkill /IM python.exe /F
 
 
+
+
+# C:\nssm\win64
+# $nssm = "C:\nssm-2.24\win64\nssm.exe"
+# $serviceName = "ScoreAnalyticsAI"
+# $pythonPath = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\.venv\Scripts\python.exe"
+# $workDir = "C:\inetpub\wwwroot\PeaceEnablers_AI_Service"
+
+# & $nssm install $serviceName $pythonPath "run.py"
+# & $nssm set $serviceName AppDirectory $workDir
+# & $nssm set $serviceName AppStdout "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs\service.log"
+# & $nssm set $serviceName AppStderr "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs\error.log"
+# & $nssm set $serviceName Start SERVICE_AUTO_START
+
+#& $nssm start $serviceName
+
+# New-Item -ItemType Directory -Force "C:\inetpub\wwwroot\PeaceEnablers_AI_Service\logs"
 # If You Ever Need to Restart After Code Changes
 # $nssm = "C:\nssm\win64\nssm.exe"
 
