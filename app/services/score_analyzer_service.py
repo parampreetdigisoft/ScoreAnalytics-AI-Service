@@ -1,12 +1,14 @@
 """
 Score analyzer service - LLM-powered analysis with database exception logging
 """
+
+from datetime import datetime
 import math
 import logging
 from typing import Any, Optional
-from app.services.common.database_service import db_service
-from app.services.common.db_logger_service import db_logger_service
-from app.services.common.veridian_ai_research_service import veridian_ai_research_service
+from app.services.core.repository import DatabaseRepository
+from app.services.common.veridian_ai_research_service import VerdianAIResearchService
+from app.services.rag_query_service import rag_query_service
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +16,11 @@ logger = logging.getLogger(__name__)
 class ScoreAnalyzerService:
     """Service for analyzing SQL Server data using LLM"""
 
-    __slots__ = ('db_service',)  # Memory optimization
+    __slots__ = ('db_service', '_ai')  # Memory optimization
 
     def __init__(self):
-        self.db_service = db_service
+        self.db_service = DatabaseRepository()
+        self._ai = VerdianAIResearchService()
 
     @staticmethod
     def to_float_safe(value) -> float:
@@ -93,18 +96,22 @@ class ScoreAnalyzerService:
                 return 0
 
         return 0
-
-    def _get_city_data(self, city_id: Optional[int] = None):
-        """Fetch city data with optional filtering"""
-        where_clause = f"where IsDeleted=0 and CityID={city_id}" if city_id else "where IsDeleted=0"
-        return db_service.read_with_query(
-            f"Select CityID, CityName, State, Country from Cities {where_clause}"
+    
+    async def _get_city_data(self, city_id: Optional[int] = None):
+        where = (
+            f"WHERE IsDeleted = 0 AND CityID = {city_id}"
+            if city_id
+            else "WHERE IsDeleted = 0"
         )
+        return await self.db_service.engine.fetch_df_async(
+            f"Select CityID, CityName, State, Country from Cities {where}"
+        )
+
 
     async def analyze_all_cities_questions(self, city_id: Optional[int] = None) -> bool:
         """Analyze City Questions data for all cities or specific city"""
         try:
-            df = self._get_city_data(city_id)
+            df = await self._get_city_data(city_id)
 
             if df.empty:
                 logger.error("No cities found for analysis analyze_all_cities_questions endpoint")
@@ -128,7 +135,7 @@ class ScoreAnalyzerService:
     async def analyze_single_City(self, cityId: int) -> bool:
         """Analyze City Questions data for a specific city"""
         try:
-            df = self._get_city_data(cityId)
+            df = await self._get_city_data(cityId)
             if df.empty:
                 return False
 
@@ -144,7 +151,7 @@ class ScoreAnalyzerService:
     async def analyze_city_pillars(self, cityId: int) -> bool:
         """Analyze City pillar data for a specific city"""
         try:
-            df = self._get_city_data(cityId)
+            df = await self._get_city_data(cityId)
             if df.empty:
                 return False
 
@@ -191,26 +198,27 @@ class ScoreAnalyzerService:
 
     def _build_question_record(self, row, ai_data, normalized_value: float) -> dict[str, Any]:
         """Build question evaluation record from AI data"""
+
         return {
             "CityID": row.CityID,
             "PillarID": row.PillarID,
             "QuestionID": row.QuestionID,
-            "Year": self.to_int_safe(ai_data["year"]),
-            "AIScore": self.to_float_none(ai_data["ai_score"]),
-            "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
+            "Year": self.to_int_safe(ai_data["Year"]),
+            "AIScore": self.to_float_none(ai_data["AIScore"]),
+            "AIProgress": self.to_float_safe(ai_data["AIProgress"]),
             "EvaluatorProgress": self.to_float_safe(normalized_value * 100),
-            "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
-            "ConfidenceLevel": ai_data["confidence_level"],
-            "DataSourcesUsed": self.to_int_safe(ai_data["data_sources_count"]),
-            "EvidenceSummary": ai_data["evidence_summary"],
-            "RedFlags": ai_data["red_flag"],
-            "GeographicEquityNote": ai_data["geographic_equity_note"],
-            "SourceType": ai_data["source_type"],
-            "SourceName": ai_data["source_name"],
-            "SourceURL": ai_data["source_url"],
-            "SourceDataYear": self.to_int_safe(ai_data["source_data_year"]),
-            "SourceDataExtract": ai_data["source_data_extract"],
-            "SourceTrustLevel": self.to_int_safe(ai_data["source_trust_level"])
+            "Discrepancy": self.to_float_safe(ai_data["Discrepancy"]),
+            "ConfidenceLevel": ai_data["ConfidenceLevel"],
+            "DataSourcesUsed": self.to_int_safe(ai_data["DataSourcesCount"]),
+            "EvidenceSummary": ai_data["EvidenceSummary"],
+            "RedFlags": ai_data["RedFlag"],
+            "GeographicEquityNote": ai_data["GeographicEquityNote"],
+            "SourceType": ai_data["SourceType"],
+            "SourceName": ai_data["SourceName"],
+            "SourceURL": ai_data["SourceURL"],
+            "SourceDataYear": self.to_int_safe(ai_data["SourceDataYear"]),
+            "SourceDataExtract": ai_data["SourceDataExtract"],
+            "SourceTrustLevel": self.to_int_safe(ai_data["SourceHierarchyLevel"])
         }
 
     async def analyze_PillarQuestions(self, city: Any, pillar_id: Optional[int] = None) -> bool:
@@ -220,11 +228,10 @@ class ScoreAnalyzerService:
             if pillar_id is not None:
                 where = f"cityId = {city.CityID} and PillarID={pillar_id}"
 
-
-            df = db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", where)
+            df = await self.db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", where)
             
             if not len(df):
-                db_logger_service.log_message("INFO", f"No pillar questions found for city {city.CityID} ({city.CityName})")
+                logger.info(f"No pillar questions found for city {city.CityID} ({city.CityName})")
                 return False
             
             pillarIds = [pillar_id] if pillar_id is not None else df["PillarID"].unique().tolist()
@@ -240,7 +247,7 @@ class ScoreAnalyzerService:
                                                    math.isnan(row.NormalizedValue))) else row.NormalizedValue
                             
                         try:
-                            ai_data = await veridian_ai_research_service.research_and_score_question(
+                            ai_data = await self._ai.research_and_score_question(
                                 city.CityName,
                                 f"State :{city.State}, Country :{city.Country}",
                                 row.PillarID,
@@ -255,18 +262,17 @@ class ScoreAnalyzerService:
                                 questionList.append(self._build_question_record(row, ai_data, normalized_value))
                                 
                                 if len(questionList) == 10:
-                                    db_service.bulk_upsert_question_evaluations(questionList)
+                                    await self.db_service.bulk_upsert_question_evaluations(questionList)
                                     questionList = []
                             else:
-                                db_logger_service.log_message("WARNING", 
-                                    f"AI analysis failed for QuestionID {row.QuestionID} in City {city.CityID}")
+                                logger.warning(f"AI analysis failed for QuestionID {row.QuestionID} in City {city.CityID}")
                                 
                         except Exception as e:
                             logger.error(f"Error processing question {row.QuestionID} for city {city.CityID}: {e}")
                             continue
                     
                     if questionList:
-                        db_service.bulk_upsert_question_evaluations(questionList)
+                        await self.db_service.bulk_upsert_question_evaluations(questionList)
 
                 except Exception as e:
                     logger.error(f"Error analyzing pillar {pillarId} for city {city.CityID}: {e}")
@@ -282,10 +288,10 @@ class ScoreAnalyzerService:
         """Analyze city pillar data and generate evaluations"""
         try:
             where = f"cityId = {city.CityID} and PillarID = {pillar_id}" if pillar_id else f"cityId = {city.CityID}"
-            df = db_service.get_view_data("vw_AiCityPillarEvaluation", where)
+            df = await self.db_service.get_view_data("vw_AiCityPillarEvaluation", where)
             
             if not len(df):
-                db_logger_service.log_message("INFO", f"No pillar evaluations found for city {city.CityID} ({city.CityName})")
+                logger.info(f"No pillar evaluations found for city {city.CityID} ({city.CityName})")
                 return False
                 
             pillarList: list[dict[str, Any]] = []
@@ -293,7 +299,7 @@ class ScoreAnalyzerService:
             
             for row in df.itertuples(index=False):
                 try:
-                    ai_data = await veridian_ai_research_service.research_and_score_pillar(
+                    ai_data = await self._ai.research_and_score_pillar(
                         city.CityName,
                         f"State :{city.State}, Country :{city.Country}",
                         row.PillarID,
@@ -304,10 +310,10 @@ class ScoreAnalyzerService:
                     )
 
                     if ai_data["success"]:
-                        for src in ai_data["sources"]:
+                        for src in ai_data["Sources"]:
                             pillarSourceList.append({
                                 "CityID": row.CityID,
-                                "DataYear": self.to_int_safe(ai_data['year']),
+                                "DataYear": self.to_int_safe(ai_data['Year']),
                                 "PillarID": row.PillarID,
                                 "SourceType": src["source_type"],
                                 "SourceName": src["source_name"],
@@ -319,34 +325,33 @@ class ScoreAnalyzerService:
                         pillarList.append({
                             "CityID": row.CityID,
                             "PillarID": row.PillarID,
-                            "Year": self.to_int_safe(ai_data['year']),
-                            "AIScore": self.to_float_safe(ai_data["ai_score"]),
-                            "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
+                            "Year": self.to_int_safe(ai_data["Year"]),
+                            "AIScore": self.to_float_safe(ai_data["AIScore"]),
+                            "AIProgress": self.to_float_safe(ai_data["AIProgress"]),
                             "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
-                            "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
-                            "ConfidenceLevel": ai_data["confidence_level"],
-                            "EvidenceSummary": ai_data['evidence_summary'],
-                            "RedFlags": ai_data.get('red_flag', ''),
-                            "GeographicEquityNote": ai_data['geographic_equity_note'],
-                            "InstitutionalAssessment": ai_data['institutional_assessment'],
-                            "DataGapAnalysis": ai_data['data_gap_analysis'],
-                            "AnalystDataGapAnalysis": ai_data['analyst_data_gap_analysis']
+                            "Discrepancy": self.to_float_safe(ai_data["Discrepancy"]),
+                            "ConfidenceLevel": ai_data["ConfidenceLevel"],
+                            "EvidenceSummary": ai_data["EvidenceSummary"],
+                            "RedFlags": ai_data.get("RedFlag", ""),
+                            "GeographicEquityNote": ai_data["GeographicEquityNote"],
+                            "InstitutionalAssessment": ai_data["InstitutionalAssessment"],
+                            "DataGapAnalysis": ai_data["DataGapAnalysis"],
+                            "AnalystDataGapAnalysis": ai_data["AnalystDataGapAnalysis"]
                         })
 
                         if len(pillarList) == 5:
-                            db_service.bulk_upsert_pillar_evaluations(pillarList, pillarSourceList)
+                            await self.db_service.bulk_upsert_pillar_evaluations(pillarList, pillarSourceList)
                             pillarList = []
                             pillarSourceList = []
                     else:
-                        db_logger_service.log_message("WARNING", 
-                            f"AI analysis failed for PillarID {row.PillarID} in City {city.CityID}")
+                        logger.warning(f"AI analysis failed for PillarID {row.PillarID} in City {city.CityID}")
 
                 except Exception as e:
                     logger.error(f"Error processing pillar {row.PillarID} for city {city.CityID}: {e}")
                     continue
 
             if pillarList:
-                db_service.bulk_upsert_pillar_evaluations(pillarList, pillarSourceList)
+                await self.db_service.bulk_upsert_pillar_evaluations(pillarList, pillarSourceList)
                 return True
                 
             return False
@@ -358,17 +363,17 @@ class ScoreAnalyzerService:
     async def analyze_city(self, city: Any) -> bool:
         """Analyze overall city data and generate comprehensive evaluation"""
         try:
-            df = db_service.get_view_data("vw_AiCityEvaluations", f"cityId = {city.CityID}")
+            df = await self.db_service.get_view_data("vw_AiCityEvaluations", f"cityId = {city.CityID}")
             
             if not len(df):
-                db_logger_service.log_message("INFO", f"No city evaluations found for city {city.CityID} ({city.CityName})")
+                logger.info(f"No city evaluations found for city {city.CityID} ({city.CityName})")
                 return False
 
             cityList: list[dict[str, Any]] = []
             
             for row in df.itertuples(index=False):
                 try:
-                    ai_data = await veridian_ai_research_service.research_and_score_city(
+                    ai_data = await self._ai.research_and_score_city(
                         city.CityName,
                         f"State :{city.State}, Country :{city.Country}",
                         row.EvaluatorProgress,
@@ -379,33 +384,33 @@ class ScoreAnalyzerService:
                     if ai_data["success"]:
                         cityList.append({
                             "CityID": row.CityID,
-                            "Year": self.to_int_safe(ai_data['year']),
-                            "AIScore": self.to_float_safe(ai_data["ai_score"]),
-                            "AIProgress": self.to_float_safe(ai_data["ai_progress"]),
+                            "Year": self.to_int_safe(ai_data['Year']),
+                            "AIScore": self.to_float_safe(ai_data["AIScore"]),
+                            "AIProgress": self.to_float_safe(ai_data["AIProgress"]),
                             "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
-                            "Discrepancy": self.to_float_safe(ai_data["discrepancy"]),
-                            "ConfidenceLevel": ai_data['confidence_level'],
-                            "EvidenceSummary": ai_data['evidence_summary'],
-                            "CrossPillarPatterns": ai_data.get('cross_pillar_patterns', ''),
-                            "InstitutionalCapacity": ai_data['institutional_capacity'],
-                            "EquityAssessment": ai_data['equity_assessment'],
-                            "SustainabilityOutlook": ai_data['sustainability_outlook'],
-                            "StrategicRecommendations": ai_data['strategic_recommendation'],
-                            "DataTransparencyNote": ai_data['data_transparency_note'],
+                            "Discrepancy": self.to_float_safe(ai_data["Discrepancy"]),
+                            "ConfidenceLevel": ai_data['ConfidenceLevel'],
+                            "EvidenceSummary": ai_data['EvidenceSummary'],
+                            "CrossPillarPatterns": ai_data.get('CrossPillarPatterns', ''),
+                            "InstitutionalCapacity": ai_data['InstitutionalCapacity'],
+                            "EquityAssessment": ai_data['EquityAssessment'],
+                            "SustainabilityOutlook": ai_data['SustainabilityOutlook'],
+                            "StrategicRecommendations": ai_data['StrategicRecommendation'],
+                            "DataTransparencyNote": ai_data['DataTransparencyNote'],
                         })
 
                         if len(cityList) == 10:
-                            db_service.bulk_upsert_city_evaluations(cityList)
+                            await self.db_service.bulk_upsert_city_evaluations(cityList)
                             cityList = []
                     else:
-                        db_logger_service.log_message("WARNING", f"AI analysis failed for City {city.CityID}")
+                        logger.warning(f"AI analysis failed for City {city.CityID}")
 
                 except Exception as e:
                     logger.error(f"Error processing city evaluation for {city.CityID}: {e}")
                     continue
 
             if cityList:
-                db_service.bulk_upsert_city_evaluations(cityList)
+                await self.db_service.bulk_upsert_city_evaluations(cityList)
                 return True
 
             return False
@@ -414,6 +419,51 @@ class ScoreAnalyzerService:
             logger.error(f"Error in analyze_city for city {city.CityID}: {e}")
             raise
 
+    async def immediateSituation(self, city_id: int, **_) -> bool:
+            """Score the overall city-level peace assessment."""
+            year = datetime.now().year        
+
+            ai_city= await self.db_service.get_ai_city_context(city_id, year)
+            city_Name = ai_city["CityName"]
+            country = ai_city["Country"]
+
+            question = f"""
+            What are the most critical recent developments, emerging risks, structural weaknesses, and key strengths across all major sectors in {city_Name}? Include insights on governance, security, economy, social cohesion, infrastructure, and institutional effectiveness. Focus on cross-pillar patterns and high-impact information relevant for executive-level city assessment and situational awareness.
+            """
+
+            document_context = await rag_query_service.get_city_document_context(city_id, question)
+
+            if ai_city:
+                ai_city_context = "\n".join(f"{key}: {value}" for key, value in ai_city.items())
+            else:
+                ai_city_context = ""
+
+            ai_data = await self._ai.immediate_situation(
+                        city_name=city_Name,
+                        country=country,
+                        ai_city_context=ai_city_context,
+                        documentContext=document_context,
+                        year=year
+                    )
+
+            result = self._build_immediateSituation_record(city_id, ai_data)
+            
+            await self.db_service.save_immediate_situation_summary(city_id,year,result)
+            
+            
+            return True
+
+    def _build_immediateSituation_record(self, cityId: int, ai: dict) -> dict:
+            summary = ai.get("executive_summary", "")
+
+            return {
+                "CityID": cityId,
+                "immediateSituationSummary": ai.get("immediateSituationSummary", "Unknown"),
+                "key_developments": ai.get("key_developments", "Unknown"),
+                "critical_risks": ai.get("critical_risks"),
+                "gaps": ai.get("gaps"),
+                "executive_summary": summary if isinstance(summary, str) and len(summary) > 50 else ""
+            }
 
 # Singleton instance
 score_analyzer_service = ScoreAnalyzerService()

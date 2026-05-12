@@ -138,4 +138,39 @@ class PillarPrompts:
         
         return contexts.get(pillarId, contexts[13]) 
 
+    # @classmethod
+    # def get_pillar_context(cls, pillar_id: int) -> str:
+    #     """Return formatted context string for a given pillar ID (1-23)."""
+    #     if pillar_id not in cls.PILLAR_CONTEXTS:
+    #         return f"No context available for pillar ID {pillar_id}."
+
+    #     pillar = cls.PILLAR_CONTEXTS[pillar_id]
+    #     signals = "\n  - ".join(pillar["search_signals"])
+    #     red_flags = "\n  - ".join(pillar["red_flags"])
+
+    #     return (
+    #         f"PILLAR: {pillar['name']}\n\n"
+    #         f"FOCUS AREAS:\n{pillar['focus']}\n\n"
+    #         f"KEY SEARCH SIGNALS:\n  - {signals}\n\n"
+    #         f"RED FLAGS TO DETECT:\n  - {red_flags}"
+    #     )
+
+    @classmethod
+    def get_all_pillar_names(cls) -> dict:
+        return {
+            13: "Urban Governance and Integrity",
+            14: "Urban Education, Learning Ecosystems, and Knowledge Equity",
+            11: "Business and Investment Environment",
+            2: "Smartness and Digital Readiness",
+            1: "Cleanliness and Sanitation",
+            3: "Conflict Risk and Early Warning",
+            10: "Civic Resilience and Social Cohesion",
+            7: "Housing and Land Security",
+            9: "Environmental Hazards and Urban Safety",
+            8: "Public Health, Inclusion, and Wellbeing",
+            4: "Infrastructure, Mobility, and Service Delivery",
+            5: "Green Infrastructure, Forests, and Urban Ecology",
+            12: "Employment and Workforce Development",
+            6: "Cultural Heritage, Identity, and Narrative Power",
+        }
 

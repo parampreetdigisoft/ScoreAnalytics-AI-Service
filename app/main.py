@@ -2,8 +2,10 @@
 Main FastAPI Application with Database Logging and API Key Authentication
 """
 
-import os
 import logging
+from app.services.core.logging_config import setup_logging
+
+setup_logging()
 
 from fastapi import FastAPI, Request
 from fastapi.security import APIKeyHeader
@@ -12,30 +14,19 @@ from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
 from fastapi.openapi.docs import get_swagger_ui_html
 from app.config import settings
-from app.services.common.database_service import db_service
-from app.services.common.db_logger_service import db_logger_service
+from app.routers.chat_router import router as chat_router
+from app.routers.document_processor_router import router as document_processor_router
+from app.routers.score_analysis_router import router as score_analysis_router
+from app.services.core.repository import db_repository
 from app.middleware.auth_middleware import APIKeyMiddleware
 
 # Import routers
 from app.routers.score_analysis_router import router as score_analysis_router
 
 
-# Configure logging to database
+import logging
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)
-
-# Add database handler
-db_handler = db_logger_service.get_handler()
-db_handler.setLevel(logging.ERROR)
-formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
-db_handler.setFormatter(formatter)
-logger.addHandler(db_handler)
-
-# Also configure root logger to use database
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-root_logger.addHandler(db_handler)
-
 
 # Define API Key security scheme
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -156,25 +147,25 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    logger.info("🚀 Starting AI Microservice...")
+    logger.info("Starting AI Microservice...")
     
     try:
 
         # Test database connection
         logger.info("Testing database connection...")
-        db_connected = db_service.test_connection()
+        db_connected = db_repository.test_connection()
         
         if not db_connected:
-            logger.warning("⚠️ Database connection failed - some features may not work")
+            logger.warning("Database connection failed - some features may not work")
 
-        logger.info("✅ All services initialized successfully!")
-        logger.info("🔐 API Key authentication is enabled")
+        logger.info(" All services initialized successfully!")
+        logger.info(" API Key authentication is enabled")
         logger.info(
-            f"📚 API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs"
+            f"API docs at http://{settings.API_HOST}:{settings.API_PORT}/docs"
         )
 
     except Exception as e:
-        logger.error(f"❌ Startup failed: {e}", exc_info=True)
+        logger.error(f"Startup failed: {e}", exc_info=True)
         raise
 
 
@@ -185,7 +176,10 @@ async def shutdown_event():
 
 
 # Include routers
+app.include_router(chat_router)
+app.include_router(document_processor_router)
 app.include_router(score_analysis_router)
+
 
 
 # Root Endpoint (requires API key)

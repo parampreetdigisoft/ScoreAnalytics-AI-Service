@@ -11,11 +11,19 @@ from typing import Dict, Any, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.config import settings
+from app.services.common.city_prompt import VerdianPromptTemplates
+from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.llm_factory import llm_factory
 from app.services.common.pillar_prompts import PillarPrompts
+from app.services.common import json_response_parser as jrp
 
 logger = logging.getLogger(__name__)
 
+_CITY_USER_TMPL = """
+    City: {city_name}
+    Country: {country}
+    Year: {year}
+"""
 class VerdianAIResearchService:
     """AI service that conducts independent research and evidence-based scoring"""
 
@@ -24,6 +32,7 @@ class VerdianAIResearchService:
         self._initialized = False
         self.max_retries = 3
         self.retry_delay = 1  # seconds
+        self._llm_svc = LLMBaseService(max_retries=3, retry_delay=1.0)
 
     async def initialize(self):
         """Initialize the LLM with retry logic"""
@@ -34,7 +43,7 @@ class VerdianAIResearchService:
             try:
                 self.llm = llm_factory.create_llm()
                 self._initialized = True
-                logger.info(f"✅ Veridian AI Research Service initialized with {settings.LLM_PROVIDER}")
+                logger.info(f"Veridian AI Research Service initialized with {settings.LLM_PROVIDER}")
                 return
             except Exception as e:
                 logger.error(f"Initialization attempt {attempt + 1} failed: {e}")
@@ -74,7 +83,7 @@ class VerdianAIResearchService:
                 pillar_context = PillarPrompts.get_pillar_context(pillarID)
 
                 prompt = ChatPromptTemplate.from_messages([
-                    ("system", self._get_question_system_prompt()),
+                    ("system", VerdianPromptTemplates._get_question_system_prompt(self)),
                     ("user", """Conduct independent research and provide evidence-based scoring.
                      
                     City: {city_name}
@@ -114,38 +123,21 @@ class VerdianAIResearchService:
                         if not result or result.strip() == "{}":
                             continue  # retry
 
-
                         # Parse and validate response
-                        cleaned = self._clean_json_response(result)
-                        analysis = self._validate_question_response(json.loads(cleaned))
+                        analysis = json.loads(jrp.clean_json_response(result))
+                        jrp.validate_question_response(analysis)                          
                         
-                        # Calculate discrepancy
-                        discrepancy = None
-                        if evaluator_score is not None:
-                            discrepancy = abs(analysis['ai_progress'] - ((evaluator_score/4)*100))
+                        mapped = jrp.map_question_response(analysis, pillarID, year)
+                        if evaluator_score is not None and analysis.get("ai_progress") is not None:
+                            mapped["Discrepancy"] = jrp._calculate_discrepancy(
+                                analysis.get("ai_progress"),
+                                evaluator_score
+                            )
                         else:
-                            discrepancy = analysis['ai_progress']
-                
-                        
-                        return {
-                            "success": True,
-                            "question": question_text,
-                            "year": year,
-                            "ai_score": analysis['ai_score'],
-                            "ai_progress": analysis['ai_progress'],
-                            "discrepancy": discrepancy,
-                            "confidence_level": analysis['confidence_level'],
-                            "data_sources_count": analysis['data_sources_count'],
-                            "evidence_summary": analysis['evidence_summary'],
-                            "red_flag": analysis.get('red_flag', ''),
-                            "geographic_equity_note": analysis.get('geographic_equity_note', ''),
-                            "source_type": analysis['source_type'],
-                            "source_name": analysis['source_name'],
-                            "source_url": analysis['source_url'],
-                            "source_data_year": analysis['source_data_year'],
-                            "source_data_extract": analysis['source_data_extract'],
-                            "source_trust_level": analysis['source_trust_level']
-                        }
+                            mapped["Discrepancy"] = None
+
+                        return mapped
+
 
                     except (json.JSONDecodeError, ValueError) as e:
                         logger.error(f"JSON parse error on attempt {attempt + 1}: {e}")
@@ -214,7 +206,7 @@ class VerdianAIResearchService:
             
             # Create the prompt
             prompt = ChatPromptTemplate.from_messages([
-                ("system",self._get_pillar_system_prompt()),
+                ("system",VerdianPromptTemplates._get_pillar_system_prompt(self)),
                 (
                     "user",
                     """Research and score the following pillar:
@@ -248,34 +240,27 @@ class VerdianAIResearchService:
                     if not result or result.strip() == "{}":
                         continue  # retry
                 
-                    # Parse and validate
-                    cleaned = self._clean_json_response(result)
-                    analysis = self._validate_pillar_response(json.loads(cleaned))
-                    
-                    discrepancy = self._calculate_discrepancy(
-                        analysis['ai_progress'],
-                        evaluator_score
+                    # Parse and validate                   
+
+                    analysis = json.loads(jrp.clean_json_response(result))
+                    jrp.validate_pillar_response(analysis)                    
+                   
+                    discrepancy = None
+                    if evaluator_score is not None and analysis.get("ai_progress") is not None:
+                        discrepancy = jrp._calculate_discrepancy(
+                            analysis.get("ai_progress"),
+                            evaluator_score
+                        )                   
+                    mapped = jrp.map_pillar_response(
+                        analysis=analysis,
+                        pillar_id=pillarId,
+                        pillar_name=pillar_name,
+                        year=year,
+                        discrepancy=discrepancy
                     )
-                    
-                    return {
-                        "success": True,
-                        "pillar": pillar_name,
-                        "pillar_id": pillarId,
-                        "ai_score": analysis['ai_score'],
-                        "ai_progress": analysis['ai_progress'],
-                        "discrepancy": discrepancy,
-                        "confidence_level": analysis['confidence_level'],
-                        "evidence_summary": analysis['evidence_summary'],
-                        "sources": analysis.get('sources', []),
-                        "red_flag": analysis.get('red_flag', ''),
-                        "geographic_equity_note": analysis.get('geographic_equity_note', ''),
-                        "institutional_assessment": analysis.get('institutional_assessment', ''),
-                        "data_gap_analysis": analysis.get('data_gap_analysis', ''),
-                        "analyst_data_gap_analysis": analysis.get('analyst_data_gap_analysis', ''),
-                        "year": year,
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    
+
+                    return mapped
+                        
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.error(f"JSON parse error on attempt {attempt + 1}: {e}")
                     if attempt < self.max_retries - 1:
@@ -321,7 +306,7 @@ class VerdianAIResearchService:
             
             
             prompt = ChatPromptTemplate.from_messages([
-                ("system",self._get_city_system_prompt()),
+                ("system",VerdianPromptTemplates._get_city_system_prompt(self)),
                 ("user", """Conduct comprehensive city-wide assessment:
 
                 City: {city_name}
@@ -353,32 +338,25 @@ class VerdianAIResearchService:
                     if not result or result.strip() == "{}":
                         continue  # retry
 
-                     # Parse and validate
-                    cleaned = self._clean_json_response(result)
-                    analysis = self._validate_city_response(json.loads(cleaned))
-                    
-                    discrepancy = self._calculate_discrepancy(
-                        analysis['ai_progress'],
-                        evaluator_score
+                     # Parse and validate                   
+
+                    analysis = json.loads(jrp.clean_json_response(result))
+                    jrp.validate_city_response(analysis)                    
+                  
+                    discrepancy = None
+                    if evaluator_score is not None and analysis.get("ai_progress") is not None:
+                        discrepancy = jrp._calculate_discrepancy(
+                            analysis.get("ai_progress"),
+                            evaluator_score
+                        )                    
+                    mapped = jrp.map_city_response(
+                        analysis=analysis,
+                        city_name=city_name,
+                        year=year,
+                        discrepancy=discrepancy
                     )
-                    
-                    return {
-                        "success": True,
-                        "city": city_name,
-                        "ai_score": analysis['ai_score'],
-                        "ai_progress": analysis['ai_progress'],
-                        "discrepancy": discrepancy,
-                        "confidence_level": analysis['confidence_level'],
-                        "evidence_summary":  analysis['city_profile'] +'\n\n' + analysis['evidence_summary'] ,
-                        "source": analysis['source'],
-                        "cross_pillar_patterns": analysis.get('cross_pillar_patterns', ''),
-                        "institutional_capacity": analysis.get('institutional_capacity', ''),
-                        "equity_assessment": analysis.get('equity_assessment', ''),
-                        "sustainability_outlook": analysis.get('sustainability_outlook', ''),
-                        "strategic_recommendation": analysis.get('strategic_recommendation', ''),
-                        "data_transparency_note": analysis.get('data_transparency_note', ''),
-                        "year": year
-                    }
+
+                    return mapped
                 except (json.JSONDecodeError, ValueError) as e:
                     logger.error(f"JSON parse error on attempt {attempt + 1}: {e}")
                     if attempt < self.max_retries - 1:
@@ -390,874 +368,68 @@ class VerdianAIResearchService:
             logger.error(f"Error in city research: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    # ==================== VALIDATION METHODS ====================
+    async def immediate_situation(
+    self,
+    city_name: str,
+    country: str,
+    ai_city_context: str,
+    documentContext: Optional[str],
+    year: int = None,
+    ) -> Dict[str, Any]:
+        """Produce a cross-pillar city-level peace assessment."""
 
-    def _validate_question_response(self, data: Dict) -> Dict:
-        """Validate and sanitize question response data"""
-        required_fields = [
-            'ai_score', 'ai_progress', 'confidence_level', 'evidence_summary',
-            'data_sources_count', 'source_type', 'source_name', 'source_url',
-            'source_data_year', 'source_trust_level', 'source_data_extract'
-        ]
-        
-        for field in required_fields:
-            if field not in data:
-                raise ValueError(f"Missing required field: {field}")
-        
-        # Validate score ranges
-        if not (0 <= data['ai_score'] <= 4):
-            raise ValueError(f"ai_score must be 0-4, got {data['ai_score']}")
-        
-        if not (0 <= data['ai_progress'] <= 100):
-            raise ValueError(f"ai_progress must be 0-100, got {data['ai_progress']}")
-        
-        if not (1 <= data['source_trust_level'] <= 7):
-            raise ValueError(f"source_trust_level must be 1-7, got {data['source_trust_level']}")
-        
-        # Validate confidence level
-        if data['confidence_level'] not in ['High', 'Medium', 'Low']:
-            logger.warning(f"Invalid confidence level: {data['confidence_level']}, defaulting to 'Medium'")
-            data['confidence_level'] = 'Medium'
-        
-        return data
-
-    def _validate_pillar_response(self, data: Dict) -> Dict:
-        """Validate and sanitize pillar response data"""
-        required_fields = [
-            'ai_score', 'ai_progress', 'confidence_level', 
-            'evidence_summary', 'sources'
-        ]
-        
-        for field in required_fields:
-            if field not in data:
-                raise ValueError(f"Missing required field: {field}")
-        
-        # Validate score ranges
-        if not (0 <= data['ai_score'] <= 4):
-            raise ValueError(f"ai_score must be 0-4, got {data['ai_score']}")
-        
-        if not (0 <= data['ai_progress'] <= 100):
-            raise ValueError(f"ai_progress must be 0-100, got {data['ai_progress']}")
-        
-        # Validate sources array
-        if not isinstance(data['sources'], list) or len(data['sources']) < 1:
-            logger.warning("Invalid sources array, creating placeholder")
-            data['sources'] = [{
-                "source_type": "Unknown",
-                "source_name": "Data not available",
-                "source_url": "Not available",
-                "data_year": datetime.now().year,
-                "trust_level": 1,
-                "data_extract": "Insufficient data available"
-            }]
-        
-        return data
-
-    def _validate_city_response(self, data: Dict) -> Dict:
-        """Validate and sanitize city response data"""
-        required_fields = [
-            'ai_score', 'ai_progress', 'confidence_level', 'evidence_summary'
-        ]
-        
-        for field in required_fields:
-            if field not in data:
-                raise ValueError(f"Missing required field: {field}")
-        
-        # Validate score ranges
-        if not (0 <= data['ai_score'] <= 4):
-            raise ValueError(f"ai_score must be 0-4, got {data['ai_score']}")
-        
-        if not (0 <= data['ai_progress'] <= 100):
-            raise ValueError(f"ai_progress must be 0-100, got {data['ai_progress']}")
-        
-        return data
-
-    # ==================== UTILITY METHODS ====================
-
-    def _calculate_discrepancy(
-        self, 
-        ai_progress: float, 
-        evaluator_score: Optional[float]
-    ) -> float:
-        """Calculate discrepancy between AI and evaluator scores"""
-        if evaluator_score is not None:
-
-            return abs(ai_progress - evaluator_score)
-        return ai_progress
-    
-    def _clean_json_response(self, response: str) -> str:
-        """
-        Clean LLM response to extract valid JSON.
-        
-        Args:
-            response: Raw response from LLM
-            
-        Returns:
-            Cleaned JSON string
-        """
-        # Remove markdown code blocks
-        response = response.strip()
-        
-        # Remove ```json and ``` markers
-        if response.startswith('```'):
-            response = response.split('```', 2)[1]
-            if response.startswith('json'):
-                response = response[4:]
-            response = response.strip()
-        
-        # Find JSON object boundaries
-        start_idx = response.find('{')
-        end_idx = response.rfind('}')
-        
-        if start_idx == -1 or end_idx == -1:
-            raise ValueError("No valid JSON object found in response")
-        
-        json_str = response[start_idx:end_idx + 1]
-        
-        # Replace smart quotes and special characters
-        json_str = json_str.replace('"', '"').replace('"', '"')
-        json_str = json_str.replace(''', "'").replace(''', "'")
-        json_str = json_str.replace('–', '-').replace('—', '-')
-        json_str = json_str.replace('…', '...')
-        
-        # Remove control characters (but keep newlines for now)
-        json_str = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', json_str)
-        
-        # Try to parse to validate
         try:
-            json.loads(json_str)
-            return json_str
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parse error at position {e.pos}: {e.msg}")
-            
-            # Show error context
-            start = max(0, e.pos - 100)
-            end = min(len(json_str), e.pos + 100)
-            logger.warning(f"Context: ...{json_str[start:end]}...")
-            
-            # Try to fix common issues
-            json_str_fixed = self._fix_json_escaping(json_str)
-            
-            try:
-                json.loads(json_str_fixed)
-                logger.info("Successfully fixed JSON")
-                return json_str_fixed
-            except json.JSONDecodeError as e2:
-                logger.error(f"Failed to fix JSON: {e2.msg} at position {e2.pos}")
-                logger.error(f"Problematic JSON (first 500 chars):\n{json_str[:500]}")
-                raise ValueError(f"Could not parse JSON: {e2.msg} at position {e2.pos}")
+            # Decide which prompt to use
+            if not documentContext or len(documentContext.strip()) < 100:
+                pillar_names = PillarPrompts.get_all_pillar_names()
 
-    def _fix_json_escaping(self, json_str: str) -> str:
-        """
-        Fix escaping issues in JSON string values.
-        
-        Args:
-            json_str: JSON string that may have escaping issues
-            
-        Returns:
-            Fixed JSON string
-        """
-        result = []
-        i = 0
-        in_string = False
-        
-        while i < len(json_str):
-            char = json_str[i]
-            
-            # Detect string boundaries (unescaped quotes)
-            if char == '"' and (i == 0 or json_str[i-1] != '\\'):
-                in_string = not in_string
-                result.append(char)
-                i += 1
-                continue
-            
-            # Inside a string value
-            if in_string:
-                # Handle backslash sequences
-                if char == '\\' and i + 1 < len(json_str):
-                    next_char = json_str[i + 1]
-                    
-                    # Valid escape sequences
-                    if next_char in ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']:
-                        result.append(char)
-                        result.append(next_char)
-                        i += 2
-                        continue
-                    # Escaped single quote - not needed in JSON, remove backslash
-                    elif next_char == "'":
-                        result.append("'")
-                        i += 2
-                        continue
-                    # Invalid escape - keep the backslash and char
-                    else:
-                        result.append('\\')
-                        result.append('\\')
-                        i += 1
-                        continue
-                # Handle unescaped special characters
-                elif char == '\n':
-                    result.append('\\n')
-                    i += 1
-                elif char == '\r':
-                    result.append('\\r')
-                    i += 1
-                elif char == '\t':
-                    result.append('\\t')
-                    i += 1
-                else:
-                    result.append(char)
-                    i += 1
+                pillar_list_str = "\n".join(
+                    f"{k}. {v}" for k, v in pillar_names.items()
+                )
+
+                system_prompt = (
+                    VerdianPromptTemplates.city_situation_awareness_system_prompt(
+                        pillar_list_str
+                    )
+                )
             else:
-                # Outside strings, keep as is
-                result.append(char)
-                i += 1
+                system_prompt = (
+                    VerdianPromptTemplates.city_summery_system_prompt(
+                        publicContext=ai_city_context,
+                        documentContext=documentContext,
+                    )
+                )
+
+            label = f"city|{city_name}"
+
+            user_template = """
+    City: {city_name}
+    Country: {country}
+    Year: {year}
+    """
+
+            raw = await self._llm_svc.invoke_chain(
+                system_prompt=system_prompt,
+                user_template=user_template,
+                variables={
+                    "city_name": city_name,
+                    "country": country,
+                    "year": year,
+                },
+                label=label,
+            )
+
+            analysis = json.loads(jrp.clean_json_response(raw))
+
+            return jrp.build_immediateSituation_record(analysis)
+
+        except Exception as exc:
+            logger.exception("immediate_situation failed")
+            return {
+                "success": False,
+                "error": str(exc),
+            }
         
-        return ''.join(result)
-    
-    # ==================== PROMPT TEMPLATES ====================
-
-    def _get_question_system_prompt(self) -> str:
-        """Get optimized system prompt for question-level research"""
-        return """
-                You are an expert urban analyst conducting independent research for the Veridian Urban Index.
-
-                **CRITICAL MISSION**: Research real evidence and provide verifiable, source-backed scoring for a specific urban question.
-            
-
-                **YOUR RESEARCH PROCESS**:
-
-                1. **MANDATORY WEB SEARCH FOR EVIDENCE ** You MUST search for:
-                -  "{city_name}" + specific question topic (official data)
-                - "{city_name}" government reports on this issue
-                - Search for: "{city_name}" + relevant pillar keywords
-                - Search international databases: World Bank, UN-Habitat, WHO data for this city
-                - Search academic research on this city's performance in this area
-
-                2. **APPLY TRUSTWORTHY SOURCE CHAIN (TSC)** - Priority Order:
-                **TIER 7** (Strongest): City government portals, municipal databases, official statistics
-                **TIER 6**: Auditor reports, ombudsman data, regulatory oversight
-                **TIER 5**: UN agencies (UN-Habitat, WHO, UNESCO), World Bank, OECD
-                **TIER 4**: Peer-reviewed academic journals, university research
-                **TIER 3**: Credible NGOs (Transparency International, etc.)
-                **TIER 2**: Private sector data (telecom, utilities, satellites)
-                **TIER 1**: News media, social media (context only, not primary evidence)
-
-                3. **VERIFICATION REQUIREMENTS**:
-                • Find AT LEAST 2 independent sources (Tiers 5-7 preferred)
-                • Structural data > perception surveys
-                • City-specific data > national averages
-                • Recent data (≤2 years) > outdated information
-                • Report ONLY the MOST TRUSTWORTHY source in response
-
-                4. **RED FLAGS TO DETECT**:
-                - Missing data in sensitive areas (potential suppression)
-                - "Perfect scores" without verification
-                - CBD showcase vs peripheral neglect
-                - Claims without institutional backing
-                - Outdated data (flag if >3 years old)
-
-                **PILLAR-SPECIFIC CONTEXT**:
-                {pillar_context}
-
-                **SCORING RUBRIC (0-4)**:
-                - **4 (Excellent)**: Multiple Tier 5-7 sources confirm strong, equitable performance
-                - Verified institutional data
-                - Recent evidence (≤2 years)
-                - Documented across city geography
-                - Sustained performance over time
-
-                - **3 (Good)**: Solid evidence from Tier 4-6 sources
-                - Generally positive indicators
-                - Some limitations or data gaps
-                - Room for improvement noted
-
-                - **2 (Basic)**: Mixed or limited evidence
-                - Inconsistent data
-                - Significant gaps in coverage
-                - Equity concerns present
-
-                - **1 (Poor)**: Weak evidence from lower-tier sources OR
-                - Clear deficiencies documented
-                - Major institutional gaps
-                - Contradictory evidence
-
-                - **0 (Critical)**: Tier 5+ sources document systemic failure OR
-                - Severe gaps with no contradicting evidence
-                - Critical institutional breakdown
-                - High-confidence evidence of poor performance                
-
-
-                **N/A (Not Applicable) — STRUCTURAL ONLY**
-                Assign **null (N/A)** ONLY when:
-                - The indicator is **structurally impossible** for the city
-                - The system being evaluated **cannot logically exist**
-
-                Examples:
-                - Maritime port indicator for a landlocked city with no inland port system
-
-                Rules:
-                - Must pass **Applicability Verification**
-                - Cannot be due to:
-                - Missing data
-                - Lack of documentation
-                - Difficulty in finding evidence
-
-                **Unknown — LAST RESORT ONLY**
-                Assign **null (Unknown)** ONLY AFTER ALL steps below fail:
-
-                1. Primary evidence search (city data, reports, official sources)
-                2. Secondary evidence search (national/global datasets, research)
-                3. Proxy indicator analysis
-                4. Cross-indicator inference
-                5. Contextual/national system inference
-
-                Conditions:
-                - No direct, indirect, or proxy evidence available
-                - Existence of the system itself cannot be determined
-                - No reasonable inference possible
-
-                **MANDATORY FALLBACK BEFORE UNKNOWN**
-
-                If ANY signal exists:
-                - Assign **minimum score (1 or 2)** instead of Unknown
-
-                Examples:
-                - System likely exists → assign **1 (Poor)**
-                - Partial/proxy evidence → assign **2 (Basic)**
-
-
-                **PROHIBITIONS**
-
-                - Do NOT assign N/A if the indicator could logically apply
-                - Do NOT assign Unknown without completing full evaluation sequence
-                - Do NOT skip scoring due to incomplete data
-                - Do NOT default to null when inference is possible
-
-                **EVIDENCE LOGGING (REQUIRED)**
-
-                For every **Unknown**:
-                - Log:
-                - Sources checked
-                - Methods attempted (proxy, inference, etc.)
-                - Reason scoring was not possible
-
-                For every **N/A**:
-                - Log:
-                - Structural justification for non-applicability
-
-
-                **CONFIDENCE LEVELS**:
-                - **High**: 3+ sources from Tiers 5-7, recent data, cross-verified, city-specific
-                - **Medium**: 2 sources from Tiers 4-6, OR recent national data, limited cross-verification
-                - **Low**: Single source, Tiers 1-3 only, outdated data, national-level only, or significant data gaps
-                -- If ai_score is null → confidence_level must be "NA" or "Unknown". 
-
-                **EVALUATOR CONTEXT** (if provided):
-                Human evaluator scored this as: {evaluator_score} and scoreProgress: {scoreProgress}%.
-                Use this as context but conduct INDEPENDENT research. Your score may differ based on evidence.
-
-                **OUTPUT AUDIENCE**: Responses must be readable by a general audience and avoid technical or internal scoring terminology.
-
-                **CRITICAL OUTPUT REQUIREMENTS**:
-                You MUST return ONLY a single valid JSON object with this EXACT structure (no additional fields, no field suffixes like _2, _3, etc.):
-                
-                {{
-                    "ai_score": <0-4 || null>,
-                    "ai_progress": <0.00-100>,
-                    "confidence_level": "<High|Medium|Low | (NA | UnKnown if ai_score is null)>",
-                    "evidence_summary": "<100-150 words summarizing key findings and rationale>",
-                    "red_flag": "<10-150 words: any concerns found, or empty string if none>",
-                    "geographic_equity_note": "<10-60 words: comment on inequality if detected, or empty string if none>",
-                    "data_sources_count": <number of sources consulted (1-5)>,
-                    "source_type": "<Government|International|Academic|NGO|Private|Media>",
-                    "source_name": "<10-60 words: organization name of the MOST TRUSTWORTHY source>",
-                    "source_url": "<URL if available, or 'Not available'>",
-                    "source_data_year": <year of data>,
-                    "source_trust_level": <1-7>,
-                    "source_data_extract": "<10-150 words: specific finding/data point from this source>"
-                }}
-
-                **JSON OUTPUT FORMAT REQUIREMENTS**:
-                CRITICAL: You MUST return valid, fully parseable JSON only. Failure to follow any rule below is unacceptable.
-
-                1. Use ONLY straight double quotes (") for all JSON keys and string values
-                2. Do NOT use smart quotes (" "), curly quotes, or any Unicode quote variants
-                3. Escape all special characters in string values:
-                - Newlines: \\n
-                - Tabs: \\t
-                - Quotes within strings: \\"
-                - Backslashes: \\\\
-                4. Do NOT include actual line breaks inside string values
-                5. Use regular hyphens (-) not em-dashes (—) or en-dashes (–)
-                6. Keep string values concise - aim for single paragraphs without line breaks
-                7. Test that your JSON is valid before responding
-                8. Use ASCII characters only (no Unicode characters such as \u2019, smart apostrophes, or typographic symbols).
-                9. Before responding, verify that:
-                    - All string values are closed
-                    - The JSON object ends with a closing brace }}
-                        
-                    Failure Handling:
-                        If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
-                        
-                Return ONLY a single JSON object
-
-                **RESEARCH NOW for**: {city_name} {city_address}
-                Question: {question_text}
-                Pillar: {pillar_name}
-                """
-
-    def _get_pillar_system_prompt(self) -> str:
-        """Get optimized system prompt for pillar-level research"""
-        return """You are an expert urban analyst for the Veridian Urban Index. Your task is to conduct independent research and provide evidence-based scoring for a city pillar.
-
-                        **YOUR MISSION:**
-                        Research and synthesize evidence across all aspects of this urban pillar and provide a verifiable score (0-4) with clear justification.
-
-                        The scoring system MUST combine:
-                        1. Structural and institutional indicators
-                        2. Historical and validated datasets
-                        3. Real-time and near real-time dynamic signals
-
-                        Static indicators alone are NOT sufficient to detect rapidly emerging risks. You must explicitly assess current disruptions, sentiment shifts, escalation patterns, and fast-moving developments using verified live information sources.
-
-                        **RESEARCH REQUIREMENTS:**
-
-                        1. **Search Strategy** - You MUST search for:
-
-                        **Core Structural Sources**
-                        - Official city/municipal data: "{city_name} {pillar_name} official statistics"
-                        - Government reports: "{city_name} government {pillar_name} report"
-                        - International data: "World Bank {city_name}" OR "UN-Habitat {city_name}"
-                        - Academic research: "{city_name} {pillar_name} peer-reviewed study"
-                        - Recent news: "{city_name} {pillar_name} {year}"
-
-                        **Dynamic Real-Time Sources**
-                        - Breaking developments: "{city_name} {pillar_name} latest news"
-                        - Social sentiment trends: "{city_name} protests complaints reactions social media"
-                        - Incident/event monitoring: "{city_name} disruption unrest outage strike violence emergency"
-                        - Local public discourse: city forums, verified public posts, reputable civic reporting
-                        - Rapid updates from credible journalists, agencies, and institutions
-
-                        2. **Source Quality Hierarchy (Trustworthy Source Chain)**:
-
-                        **TIER 7** (Strongest):
-                        Official city government portals, municipal databases, city statistics
-
-                        **TIER 6**:
-                        Government audit reports, ombudsman data, regulators, emergency agencies
-
-                        **TIER 5**:
-                        UN agencies, World Bank, OECD, recognized multilateral institutions
-
-                        **TIER 4**:
-                        Peer-reviewed journals, universities, research institutes
-
-                        **TIER 3**:
-                        Established NGOs, watchdog groups, civic observatories
-
-                        **TIER 2**:
-                        Private sector reports, utilities, telecoms, verified platform analytics
-
-                        **TIER 1**:
-                        News media, verified journalists, validated social media signals (context only unless corroborated)
-
-                        3. **VERIFICATION STANDARDS**:
-
-                        - Find AT LEAST 2 independent sources (preferably Tier 5-7)
-                        - Prioritize: City-specific data > National averages
-                        - Prioritize: Recent data (within 1 year) > Old data
-                        - Prioritize: Verified evidence > rumor/speculation
-                        - Prioritize: Structural metrics + live signals together
-                        - Check for geographic inequality within the city
-                        - Cross-check dynamic claims with at least one credible secondary source where possible
-
-                        4. **REAL-TIME SIGNAL ANALYSIS (MANDATORY):**
-
-                        You MUST treat real-time signals as a separate analytical layer.
-
-                        Evaluate:
-                        - Sudden protests, unrest, violence, strikes, shutdowns
-                        - Rapid sentiment deterioration or panic signals
-                        - Service failures, outages, infrastructure disruptions
-                        - Governance scandals or emergency incidents
-                        - Sharp spikes in complaints or grievances
-                        - Escalation patterns over recent days/weeks
-
-                        Apply filtering to distinguish:
-                        - Credible evidence vs misinformation
-                        - Coordinated manipulation vs organic concern
-                        - Isolated incidents vs persistent trends
-                        - Media amplification vs genuine deterioration
-
-                        Real-time findings MAY influence:
-                        - ai_score (moderately when evidence is strong)
-                        - ai_progress
-                        - confidence_level
-                        - red_flag warnings
-                        - early warning interpretation
-
-                        Real-time noise MUST NOT override strong structural evidence without verification.
-
-                        5. **Red Flags to Identify**:
-
-                        - Missing data in politically sensitive areas
-                        - Claims of perfect performance without evidence
-                        - CBD showcase areas vs neglected periphery
-                        - Outdated data presented as current
-                        - Contradictions between official claims and credible reports
-                        - Real-time unrest not reflected in official reporting
-                        - Sudden negative sentiment spikes
-                        - Repeated incidents suggesting escalation
-
-                        6. **Scoring Rubric (0-4 scale):**
-
-                        **4.0 (Excellent)**:
-                        - Multiple Tier 5-7 sources confirm strong performance
-                        - Recent verified data
-                        - Strong institutions and resilient real-time environment
-                        - No significant live disruptions
-                        - Sustained positive trend
-
-                        **3.0 (Good)**:
-                        - Solid evidence from Tier 4-6 sources
-                        - Generally positive indicators
-                        - Minor issues or isolated live disruptions
-                        - Manageable risks
-
-                        **2.0 (Basic/Adequate)**:
-                        - Mixed evidence or limited data
-                        - Uneven performance
-                        - Noticeable service or governance gaps
-                        - Recurrent live stress signals
-
-                        **1.0 (Poor)**:
-                        - Weak evidence OR clear deficiencies
-                        - Major institutional gaps
-                        - Significant inequity
-                        - Serious current disruptions or rising instability
-
-                        **0.0 (Critical Failure)**:
-                        - Systemic failure documented by credible evidence
-                        - Severe breakdowns
-                        - High-confidence evidence of crisis conditions
-                        - Major escalating live risks
-
-                        7. **Confidence Assessment**:
-
-                        **High Confidence**
-                        - 3+ strong sources
-                        - Recent city-specific data
-                        - Dynamic signals corroborated
-
-                        **Medium Confidence**
-                        - 2 moderate sources
-                        - Partial city evidence
-                        - Mixed real-time verification
-
-                        **Low Confidence**
-                        - Sparse evidence
-                        - Outdated or contradictory data
-                        - Unverified live claims
-
-                        **CONTEXT PROVIDED:**
-
-                        **Pillar Focus Areas:**
-                        {pillar_context}
-
-                        **Reference Scores (for context only - DO NOT copy these):**
-                        {evaluator_context}
-                        {ai_input_context}
-
-                        **OUTPUT FORMAT:**
-
-                        You MUST return ONLY valid JSON in this exact structure (no markdown, no explanations):
-
-                        {{
-                        "ai_score": <Scoring Rubric (0-4 scale)>,
-                        "ai_progress": <0-100>,
-                        "confidence_level": "<High|Medium|Low>",
-                        "evidence_summary": "Concise MAX 300 words written for a general audience. Include structural findings and current/emerging issues where relevant.",
-                        "sources": [
-                            {{
-                            "source_type": "Government",
-                            "source_name": "City Department",
-                            "source_url": "https://example.com",
-                            "data_year": 2025,
-                            "trust_level": 7,
-                            "data_extract": "Specific verified finding"
-                            }},
-                            {{
-                            "source_type": "News",
-                            "source_name": "Credible Outlet",
-                            "source_url": "https://example.com",
-                            "data_year": 2026,
-                            "trust_level": 1,
-                            "data_extract": "Recent development relevant to pillar"
-                            }}
-                        ],
-                        "red_flag": "150-200 words on systemic concerns, contradictions, current risks, or escalation signals.",
-                        "geographic_equity_note": "150-200 words on whether services/outcomes are fairly distributed.",
-                        "institutional_assessment": "150-200 words on governance capacity and effectiveness.",
-                        "data_gap_analysis": "150-200 words explaining missing datasets, weak disaggregation, or evidence limitations.",
-                        "analyst_data_gap_analysis": "150-200 words explaining triangulation across public data, academic literature, interviews, community insights, and dynamic real-time signals such as verified news and public sentiment."
-                        }}
-
-                        **CRITICAL RULES:**
-
-                        - ai_score must be between 0 and 4
-                        - ai_progress must be between 0 and 100
-                        - Include 2 to 8 sources when available; if only 1 credible source exists, include it with a note that findings are partly derived from broader research
-                        - Include 1 to 2 recent sources when current risks are relevant
-                        - Reflect verified real-time risks in ai_score, ai_progress, and red_flag
-                        - Do not rely only on social media without verification
-                        - Keep output clear and readable for general audiences
-
-                        **JSON OUTPUT FORMAT REQUIREMENTS**:
-
-                        1. Use ONLY straight double quotes (")
-                        2. No smart quotes
-                        3. Escape special characters
-                        4. No actual line breaks inside string values
-                        5. Use regular hyphens only
-                        6. Keep values concise
-                        7. Ensure valid parseable JSON
-                        8. ASCII characters only
-                        9. Final object must close properly with }}
-
-                        Failure Handling:
-                        If response risks truncation or invalid JSON, return {{}} only.
-                        """
-
-    def _get_city_system_prompt(self) -> str:
-        """Get optimized system prompt for city-level research"""
-        return """You are conducting a comprehensive city-wide Veridian Urban Index (VUI) assessment for decision-makers, investors, and policymakers.
-
-            **MISSION**: Synthesize evidence across all 14 pillars to produce a structured, decision-grade urban assessment.
-
-            ---
-
-            **STEP 1 — CITY PROFILE IDENTIFICATION**
-
-            Before scoring, identify and state the following structural characteristics of the city:
-            - Population size (approximate, sourced)
-            - World Bank country income classification: High / Upper-Middle / Lower-Middle / Low
-            - Global region: Africa / Asia / Europe / Latin America / Middle East / North America / Oceania
-            - Population bracket: Small city (<500K) / Medium city (500K–2M) / Large metro (2M–5M) / Megacity (5M+)
-            - City functional role: National capital / Regional hub / Industrial city / Port city / Innovation hub / Other
-            - Urban growth rate: Rapidly growing / Stable / Declining
-            - Economic base: Service economy / Manufacturing / Resource-dependent / Mixed
-
-            These characteristics must appear naturally in the evidence_summary and peer comparison context.
-
-            ---
-
-            **STEP 2 — PEER COMPARISON FRAMEWORK**
-
-            Compare this city only against structurally comparable peers using:
-            - Same World Bank income classification
-            - Same global region where possible
-            - Same population bracket
-            - Similar functional role
-
-            Do NOT compare this city against all global cities indiscriminately. The peer group must be made explicit and the city's relative position clearly stated.
-
-            Example peer framing: "Among upper-middle income cities in Latin America with populations between 1–3 million, [City] performs above the regional median in governance but below peer average in housing affordability."
-
-            ---
-
-            **STEP 3 — CROSS-PILLAR INTEGRATION**
-
-            Examine the following system interactions:
-            - Housing <-> Transportation
-            - Climate <-> Inequality
-            - Digital access <-> Education
-            - Governance <-> Investment climate
-            - Infrastructure <-> Urban expansion
-
-            Identify whether weak pillars are isolated failures or symptoms of a systemic pattern.
-
-            ---
-
-            **STEP 4 — EVIDENCE HIERARCHY**
-
-            TIER 7: City master plans, municipal comprehensive reports
-            TIER 5: UN-Habitat city profiles, World Bank urban assessments
-            TIER 4: Academic urban studies, research institutions
-            TIER 3: Think tank evaluations (Brookings, C40, McKinsey Global Institute)
-
-            ---
-
-            **STEP 5 — RISK AND OPPORTUNITY DETECTION**
-
-            Apply the following threshold logic:
-
-            Housing Reform triggered if: housing score < 70 OR affordability indicators low OR rapid population growth
-            Climate Resilience triggered if: environmental hazards score < 75 OR heat/drought exposure rising
-            Inclusive Economy triggered if: employment score < 70 OR inequality indicators high
-            Infrastructure triggered if: infrastructure score < 75 OR service coverage gaps detected
-            Social Cohesion triggered if: civic resilience score < 70 OR displacement patterns present
-
-            Rank recommendations by: severity of risk > number of affected pillars > long-term urban stability > policy feasibility
-
-            ---
-
-            **PILLAR SYNTHESIS CONTEXT**:
-            {pillars_context}
-
-            **REFERENCE SCORES** (for calibration only — do not copy):
-            {evaluator_context}
-            Previous AI Assessment: {aIScore}
-
-            ---
-
-            **SCORING FRAMEWORK (0–4)**:
-
-            4.0 (Excellent): Strong across all pillars, verified equity, robust institutions, transparent governance, sustainable trajectory
-            3.0 (Good): Solid overall performance, some weak areas, generally inclusive, room for improvement
-            2.0 (Basic): Mixed results, significant gaps in multiple pillars, inequality concerns, inconsistent capacity
-            1.0 (Poor): Weak institutions, major deficiencies, limited data, serious equity issues
-            0.0 (Critical): Systemic failure, severe inequality, institutional collapse, multiple pillars in crisis
-
-            **CONFIDENCE LEVELS**:
-            High: Comprehensive data, multiple Tier 5-7 sources, consistent patterns
-            Medium: Mixed data quality, some gaps, moderate verification
-            Low: Limited data, significant gaps, national proxies only
-
-            ---
-
-            **OUTPUT AUDIENCE**: All text must be written for policymakers, investors, and senior decision-makers. Clear, direct, no internal scoring terminology.
-
-            ---
-
-            **EXECUTIVE SUMMARY WRITING FRAMEWORK**
-
-            The evidence_summary field MUST follow this exact 8-section structure. Each section is mandatory.
-            Target length: 550-700 words total. Write in flowing prose — no section headers, no bullet points.
-
-            SECTION 1 — CITY SCORE AND OVERVIEW (1 paragraph, ~60 words):
-            You MUST begin the paragraph using the EXACT sentence structure below. Do not change wording, order, or phrasing except for placeholders:
-            "[City] achieves an overall VUI score of [X]% percent across 14 pillars and 110 KPIs, placing it [above/at/below] the median among [peer group description]."
-            Rules:
-            - The phrase "percent across 14 pillars" MUST appear exactly as written.
-            - Do NOT omit, rephrase, or move "percent across 14 pillars".
-            - Do NOT modify the sentence structure and not repeat "percent across" word in the response mutiple time just once.
-            - After this sentence, continue naturally to complete a single paragraph (~60 words total).
-            The paragraph must clearly answer: How well is this city functioning overall?
-
-
-            SECTION 2 — SYSTEM DIAGNOSIS (1 paragraph, ~80 words):
-            Describe what type of city this is structurally. Answer: Is the city stable, competitive,
-            under pressure, or in transition? What trajectory is it on? Capture the dominant urban dynamic
-            (e.g., a growing metro under affordability strain, a declining industrial city rebuilding its base,
-            a stable capital facing climate exposure). This is the "diagnosis of the city system" — not a
-            list of scores but a coherent characterization of the city's condition and direction.
-
-            SECTION 3 — STRATEGIC STRENGTHS (1 paragraph, ~80 words):
-            Identify the 3-5 pillars or domains where the city performs best. Do NOT list indicators.
-            Write these as strategic assets: what structural advantages does this city possess?
-            Frame strengths in terms of what they mean for competitiveness, resilience, or investability.
-            Example: "The city benefits from strong institutional capacity, a diversified regional economy,
-            and long-term planning frameworks that integrate mobility, climate, and economic development."
-
-            SECTION 4 — STRUCTURAL RISKS (1 paragraph, ~80 words):
-            Identify the 3-5 most serious systemic vulnerabilities. These must be issues that affect
-            long-term livability, competitiveness, or stability — not isolated data gaps.
-            Write as risks, not as low scores. Explain why each matters structurally.
-            This section must answer: What are the biggest risks in the next decade?
-            
-            EVIDENCE_SUMMARY QUALITY CHECKS before writing:
-            - Does Section 1 characterize the city as a system — not just list facts?
-            - Are Sections 2 and 3 written as strategic assets and systemic risks — not indicator lists?
-            - Does Section 4 explain cause-effect logic across at least two sectors?
-            
-            CROSS-SECTOR PATTERNS 
-            -conclude with an investability or reform-readiness signal?
-            
-            INSTITUTIONAL CAPACITY:
-            - Does Section 6 contain exactly three ranked priorities with domain, problem, and direction?
-
-            strategic_recommendation:
-            - Does Section 7 position the VUI as decision intelligence, not a ranking tool?
-
-            ---
-
-            **OUTPUT** (strict JSON):
-            {{
-                "ai_score": <0-4 numeric>,
-
-                "ai_progress": <0.00-100.00 overall progress across all 14 pillars>,
-
-                "confidence_level": "<High|Medium|Low>",
-
-                "city_profile": "<MAX 150 words, ASCII only. State: population size and source, World Bank income classification, global region, population bracket, city functional role, urban growth rate, and economic base. Write as a readable paragraph — example: 'Denver is a large metropolitan area with approximately 2.9 million residents in the greater metro region. It is classified as a High Income city under World Bank criteria, located in North America. As a regional capital and innovation hub with a mixed service and technology economy, Denver has experienced sustained population growth over the past decade.'>",
-
-                "peer_comparison": "<MAX 200 words, ASCII only. Explicitly name the peer group used for comparison: same income classification, same region, same population bracket. State the city's relative position — above, at, or below peer average — for overall performance and for 2-3 key pillars. Use concrete framing: 'Among high-income cities in North America with populations between 2-5 million, Denver performs above the regional median in governance and digital readiness, but below peer average in housing affordability and climate resilience.' This section must make the comparative logic visible and credible.>",
-
-                "evidence_summary": "<550-700 words, ASCII only. Follow the mandatory 8-section Executive Summary structure exactly as defined above. Write in continuous prose — no section headers, no bullet points, no numbered lists. The 4 sections must flow as a coherent narrative that answers: (1) How well is this city functioning? (2) What are the biggest risks in the next decade? (3) Where should policy or investment focus first? Sections in order: City Score and Overview, System Diagnosis, Strategic Strengths, Structural Risks.>",
-
-                "source": "<List Tier 5-7 sources used, comma-separated. Prioritize UN-Habitat, World Bank, OECD, city master plans, municipal reports>",
-
-                "cross_pillar_patterns": "<MAX 200 words, ASCII only.    
-                 Identify the 1-2 most important system dynamics visible across pillars.
-                    Explain the interdependency logic — which sectors reinforce or undermine each other,
-                    and what this reveals about the city's structural condition.
-                    Example: "Strong planning capacity combined with weak housing outcomes suggests
-                    institutional ability exists but is not directed at supply-side constraints — a policy
-                    alignment gap rather than a capacity failure.>",
-
-                "institutional_capacity": "<MAX 200 words, ASCII only. 
-                    Assess whether the city government can actually solve the problems identified.
-                    Cover governance model, administrative professionalism, planning frameworks, and data transparency.
-                    Conclude with a clear investability or reform-readiness signal.
-                    Example closing: "A city with significant challenges but strong institutional foundations
-                    represents a credible reform partner and a viable environment for long-term investment."
-                 >",
-
-                "equity_assessment": "<MAX 200 words, ASCII only. Assess geographic and social inclusion across the city. Are services and outcomes distributed equitably across neighborhoods, income groups, and demographic categories? Identify specific spatial inequalities or excluded populations. Note whether equity data is available and reliable.>",
-
-                "sustainability_outlook": "<MAX 200 words, ASCII only. Assess the city's trajectory over the next 5-10 years. Is performance improving, stable, or declining? Which pillars show positive momentum? Which are deteriorating? What structural factors will shape the city's long-term resilience?>",
-
-                "strategic_recommendation": "<MAX 200 words, ASCII only. 
-                State exactly three strategic priorities derived from the risk and threshold logic in Step 5.
-                Rank them: Priority 1 (most urgent), Priority 2, Priority 3.
-                Each priority must name the policy domain, the core problem, and the direction of action.
-                Write as a single paragraph — not a numbered list.
-                This section must answer: Where should policy or investment focus first?>",
-
-                "data_transparency_note": "<MAX 150 words, ASCII only.
-
-                    WHY THIS ASSESSMENT MATTERS
-
-                    Close by explaining the value of the VUI assessment itself for this city.
-                    Reference the integration of 14 policy pillars and 110 indicators.
-                    Connect economic competitiveness, sustainability, governance, and social stability.
-                    Frame the report as decision intelligence — not a scorecard, but a system-level
-                    diagnostic tool for policymakers, investors, and development institutions.>"
-            }}
-
-            **JSON OUTPUT FORMAT REQUIREMENTS**:
-            CRITICAL: The response MUST be valid, parseable JSON. Follow these rules STRICTLY:
-
-            1. Use ONLY straight double quotes (") for all JSON keys and string values
-            2. Do NOT use smart quotes or any Unicode quote variants
-            3. Escape all special characters in string values:
-            - Newlines: \\n
-            - Tabs: \\t
-            - Quotes within strings: \\"
-            - Backslashes: \\\\
-            4. Do NOT include actual line breaks inside string values
-            5. Use regular hyphens (-) not em-dashes or en-dashes
-            6. Keep string values as single paragraphs without line breaks
-            7. Test that your JSON is valid before responding
-            8. Use ASCII characters only — no Unicode characters, smart apostrophes, or typographic symbols
-            9. Before responding, verify that:
-            - All string values are closed
-            - The JSON object ends with a closing brace }}
-
-            Failure Handling:
-            If the response risks being truncated, exceeds length limits, or violates any rule, return {{}} only.
-
-            **RESEARCH NOW for**: {city_name} {city_address}"""
 
 # Singleton instance
 veridian_ai_research_service = VerdianAIResearchService()
