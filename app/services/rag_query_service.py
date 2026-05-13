@@ -419,6 +419,19 @@ class RAGQueryService:
             except json.JSONDecodeError:
                 pass
         return []
+    
+    async def _get_global_toc(self) -> List[Dict]:
+
+        query = """
+            SELECT t.TOCID, t.SectionPath, t.SectionTitle, t.SectionLevel,
+                   t.PillarID, cd.FileName
+            FROM DocumentTOC t
+            JOIN CityDocuments cd ON cd.CityDocumentID = t.CityDocumentID
+            WHERE  cd.IsDeleted = 0 or DocumentLevel Like ?
+        """
+        documentLevel = "Global"
+
+        return await self._db.engine.fetch_dicts_async(query, (documentLevel))
 
     # ------------------------------------------------------------------ #
     #  Helpers                                                            #
