@@ -49,11 +49,14 @@ def clean_json_response(response: str) -> str:
 
     # Normalise typographic characters
     json_str = (
-        json_str.replace("\u201c", '"').replace("\u201d", '"')   # smart quotes
-        .replace("\u2018", "'").replace("\u2019", "'")           # smart apostrophes
-        .replace("\u2013", "-").replace("\u2014", "-")           # en/em dashes
-        .replace("\u2026", "...")                                 # ellipsis
+        json_str
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+        .replace("\u2013", "-")
+        .replace("\u2014", "-")
+        .replace("\u2026", "...")
     )
+
 
     # Strip control characters (keep \n, \r, \t for now)
     json_str = re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]", "", json_str)

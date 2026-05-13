@@ -394,6 +394,20 @@ class DatabaseRepository:
         response = await self.engine.fetch_dicts_async(query, params)
 
         return response
+    
+    async def AiRecalculateCityScore(self, cityID: int) -> None:
+
+        await self.engine.execute_sp_async(
+            "EXEC sp_AiRecalculateCityScore @CityID = ?",
+            (cityID,),
+        )
+
+    async def AiInsertAnalyticalLayerResults(self, cityID: int) -> None:
+
+        await self.engine.execute_sp_async(
+            "EXEC sp_AiInsertAnalyticalLayerResults @CityID = ?",
+            (cityID,),
+        )
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------

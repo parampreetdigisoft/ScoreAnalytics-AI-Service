@@ -11,7 +11,7 @@ from app.services.common.veridian_ai_research_service import VerdianAIResearchSe
 from app.services.rag_query_service import rag_query_service
 
 logger = logging.getLogger(__name__)
-
+_BATCH_SIZE = 5
 
 class ScoreAnalyzerService:
     """Service for analyzing SQL Server data using LLM"""
@@ -119,8 +119,8 @@ class ScoreAnalyzerService:
 
             for city in df.itertuples(index=False):
                 try:
-                    await self.analyze_PillarQuestions(city)
-                    await self.analyze_cityPillar(city)
+                    # await self.analyze_PillarQuestions(city)
+                    #await self.analyze_cityPillar(city)
                     await self.analyze_city(city)
                 except Exception as e:
                     logger.error(f"Failed to analyze city {city.CityID} ({city.CityName}): {e}")
@@ -221,203 +221,307 @@ class ScoreAnalyzerService:
             "SourceTrustLevel": self.to_int_safe(ai_data["SourceHierarchyLevel"])
         }
 
-    async def analyze_PillarQuestions(self, city: Any, pillar_id: Optional[int] = None) -> bool:
-        """Analyze Pillar Questions data for a city"""
-        try:
-            where = f"cityId = {city.CityID}"
-            if pillar_id is not None:
-                where = f"cityId = {city.CityID} and PillarID={pillar_id}"
+    async def analyze_PillarQuestions(
+        self,
+        city: Any,
+        pillar_id: Optional[int] = None,
+    ) -> bool:
+        """Analyze pillar questions data for a city."""
 
-            df = await self.db_service.get_view_data("vw_AiCityPillarQuestionEvaluations", where)
-            
-            if not len(df):
-                logger.info(f"No pillar questions found for city {city.CityID} ({city.CityName})")
-                return False
-            
-            pillarIds = [pillar_id] if pillar_id is not None else df["PillarID"].unique().tolist()
-            
-            for pillarId in pillarIds:
-                pillar_df = df[df["PillarID"] == pillarId]
-                questionList: list[dict[str, Any]] = []
-                
+        where = f"cityId = {city.CityID}"
+        if pillar_id is not None:
+            where += f" AND PillarID = {pillar_id}"
+
+        df = await self.db_service.get_view_data(
+            "vw_AiCityPillarQuestionEvaluations",
+            where,
+        )
+
+        if df.empty:
+            logger.info(
+                "No pillar questions found: city %d (%s)",
+                city.CityID,
+                city.CityName,
+            )
+            return False
+
+        target_pillars = (
+            [pillar_id]
+            if pillar_id is not None
+            else df["PillarID"].unique().tolist()
+        )
+
+        for pid in target_pillars:
+            batch: list[dict[str, Any]] = []
+
+            for row in df[df["PillarID"] == pid].itertuples(index=False):
                 try:
-                    for row in pillar_df.itertuples(index=False):
-                        normalized_value = 0 if (row.NormalizedValue is None or 
-                                                  (isinstance(row.NormalizedValue, float) and 
-                                                   math.isnan(row.NormalizedValue))) else row.NormalizedValue
-                            
-                        try:
-                            ai_data = await self._ai.research_and_score_question(
-                                city.CityName,
-                                f"State :{city.State}, Country :{city.Country}",
-                                row.PillarID,
-                                row.PillarName,
-                                f" Question :{row.QuestionText}, Options :{row.Options}",
-                                row.ScoreProgress,
-                                round(normalized_value * 4.0),
-                                None
-                            )
+                    normalized_value = self._safe_normalized(row.NormalizedValue)
 
-                            if ai_data["success"]:
-                                questionList.append(self._build_question_record(row, ai_data, normalized_value))
-                                
-                                if len(questionList) == 10:
-                                    await self.db_service.bulk_upsert_question_evaluations(questionList)
-                                    questionList = []
-                            else:
-                                logger.warning(f"AI analysis failed for QuestionID {row.QuestionID} in City {city.CityID}")
-                                
-                        except Exception as e:
-                            logger.error(f"Error processing question {row.QuestionID} for city {city.CityID}: {e}")
-                            continue
-                    
-                    if questionList:
-                        await self.db_service.bulk_upsert_question_evaluations(questionList)
-
-                except Exception as e:
-                    logger.error(f"Error analyzing pillar {pillarId} for city {city.CityID}: {e}")
-                    continue
-                    
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error in analyze_PillarQuestions for city {city.CityID}: {e}")
-            raise
-
-    async def analyze_cityPillar(self, city: Any, pillar_id: Optional[int] = None) -> bool:
-        """Analyze city pillar data and generate evaluations"""
-        try:
-            where = f"cityId = {city.CityID} and PillarID = {pillar_id}" if pillar_id else f"cityId = {city.CityID}"
-            df = await self.db_service.get_view_data("vw_AiCityPillarEvaluation", where)
-            
-            if not len(df):
-                logger.info(f"No pillar evaluations found for city {city.CityID} ({city.CityName})")
-                return False
-                
-            pillarList: list[dict[str, Any]] = []
-            pillarSourceList: list[dict[str, Any]] = []
-            
-            for row in df.itertuples(index=False):
-                try:
-                    ai_data = await self._ai.research_and_score_pillar(
+                    ai_data = await self._ai.research_and_score_question(
                         city.CityName,
                         f"State :{city.State}, Country :{city.Country}",
                         row.PillarID,
                         row.PillarName,
-                        row.QuestionWithScores,
-                        row.EvaluatorProgress,
-                        row.AIScore,
+                        f" Question :{row.QuestionText}, Options :{row.Options}",
+                        row.ScoreProgress,
+                        round(normalized_value * 4.0),
+                        None,
                     )
 
-                    if ai_data["success"]:
-                        for src in ai_data["Sources"]:
-                            pillarSourceList.append({
-                                "CityID": row.CityID,
-                                "DataYear": self.to_int_safe(ai_data['Year']),
-                                "PillarID": row.PillarID,
-                                "SourceType": src["source_type"],
-                                "SourceName": src["source_name"],
-                                "SourceURL": src["source_url"],
-                                "DataExtract": src["data_extract"],
-                                "TrustLevel": self.to_int_safe(src["trust_level"])
-                            })
+                    if not ai_data.get("success"):
+                        logger.warning(
+                            "AI analysis failed for question %d in city %d",
+                            row.QuestionID,
+                            city.CityID,
+                        )
+                        continue
 
-                        pillarList.append({
-                            "CityID": row.CityID,
-                            "PillarID": row.PillarID,
-                            "Year": self.to_int_safe(ai_data["Year"]),
-                            "AIScore": self.to_float_safe(ai_data["AIScore"]),
-                            "AIProgress": self.to_float_safe(ai_data["AIProgress"]),
-                            "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
-                            "Discrepancy": self.to_float_safe(ai_data["Discrepancy"]),
-                            "ConfidenceLevel": ai_data["ConfidenceLevel"],
-                            "EvidenceSummary": ai_data["EvidenceSummary"],
-                            "RedFlags": ai_data.get("RedFlag", ""),
-                            "GeographicEquityNote": ai_data["GeographicEquityNote"],
-                            "InstitutionalAssessment": ai_data["InstitutionalAssessment"],
-                            "DataGapAnalysis": ai_data["DataGapAnalysis"],
-                            "AnalystDataGapAnalysis": ai_data["AnalystDataGapAnalysis"]
-                        })
+                    batch.append(
+                        self._build_question_record(
+                            row,
+                            ai_data,
+                            normalized_value,
+                        )
+                    )
 
-                        if len(pillarList) == 5:
-                            await self.db_service.bulk_upsert_pillar_evaluations(pillarList, pillarSourceList)
-                            pillarList = []
-                            pillarSourceList = []
-                    else:
-                        logger.warning(f"AI analysis failed for PillarID {row.PillarID} in City {city.CityID}")
+                    batch = await self._flushQuestion(
+                        city.CityID,
+                        batch,
+                        self.db_service.bulk_upsert_question_evaluations,
+                    )
 
-                except Exception as e:
-                    logger.error(f"Error processing pillar {row.PillarID} for city {city.CityID}: {e}")
+                except Exception as exc:
+                    logger.error(
+                        "Question %d, city %d: %s",
+                        row.QuestionID,
+                        city.CityID,
+                        exc,
+                        exc_info=True,
+                    )
+
+            await self._flushQuestion(
+                city.CityID,
+                batch,
+                self.db_service.bulk_upsert_question_evaluations,
+                force=True,
+            )
+
+            await self.db_service.AiInsertAnalyticalLayerResults(
+                city.CityID
+            )
+
+        return True
+
+    async def analyze_cityPillar( self, city: Any, pillar_id: Optional[int] = None,) -> bool:
+        """Score every pillar for a city."""
+
+        where = f"cityId = {city.CityID}"
+        if pillar_id is not None:
+            where += f" AND PillarID = {pillar_id}"
+
+        df = await self.db_service.get_view_data(
+            "vw_AiCityPillarEvaluation",
+            where,
+        )
+
+        if df.empty:
+            logger.info(
+                "No pillar evaluations found: city %d",
+                city.CityID,
+            )
+            return False
+
+        pillar_batch: list[dict[str, Any]] = []
+        source_batch: list[dict[str, Any]] = []
+
+        for row in df.itertuples(index=False):
+            try:
+                ai_data = await self._ai.research_and_score_pillar(
+                    city.CityName,
+                    f"State :{city.State}, Country :{city.Country}",
+                    row.PillarID,
+                    row.PillarName,
+                    row.QuestionWithScores,
+                    row.EvaluatorProgress,
+                    row.AIScore,
+                )
+
+                if not ai_data.get("success"):
+                    logger.warning(
+                        "AI analysis failed for pillar %d in city %d",
+                        row.PillarID,
+                        city.CityID,
+                    )
                     continue
 
-            if pillarList:
-                await self.db_service.bulk_upsert_pillar_evaluations(pillarList, pillarSourceList)
-                return True
-                
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error in analyze_cityPillar for city {city.CityID}: {e}")
-            raise
+                pillar_batch.append(
+                    self._build_pillar_record(
+                        row,
+                        ai_data,
+                        city.CityID,
+                    )
+                )
+
+                source_batch.extend(
+                    self._build_source_records(
+                        row,
+                        ai_data,
+                    )
+                )
+
+                pillar_batch, source_batch = await self._flush_pillar(
+                    pillar_batch,
+                    source_batch,
+                )
+
+            except Exception as exc:
+                logger.error(
+                    "Pillar %d, city %d: %s",
+                    row.PillarID,
+                    city.CityID,
+                    exc,
+                    exc_info=True,
+                )
+
+        await self._flush_pillar(
+            pillar_batch,
+            source_batch,
+            force=True,
+        )
+
+        await self.db_service.AiRecalculateCityScore(
+            city.CityID
+        )
+
+        return True
 
     async def analyze_city(self, city: Any) -> bool:
-        """Analyze overall city data and generate comprehensive evaluation"""
-        try:
-            df = await self.db_service.get_view_data("vw_AiCityEvaluations", f"cityId = {city.CityID}")
-            
-            if not len(df):
-                logger.info(f"No city evaluations found for city {city.CityID} ({city.CityName})")
-                return False
+        """Analyze overall city data and generate comprehensive evaluation."""
+        
+        df = await self.db_service.get_view_data(
+            "vw_AiCityEvaluations",
+            f"cityId = {city.CityID}"
+        )
 
-            cityList: list[dict[str, Any]] = []
-            
-            for row in df.itertuples(index=False):
-                try:
-                    ai_data = await self._ai.research_and_score_city(
-                        city.CityName,
-                        f"State :{city.State}, Country :{city.Country}",
-                        row.EvaluatorProgress,
-                        row.AIScore,
-                        row.PillarWithScores
+        if df.empty:
+            logger.info(
+                "No city evaluations found: city %d (%s)",
+                city.CityID,
+                city.CityName,
+            )
+            return False
+
+        batch: list[dict[str, Any]] = []
+
+        for row in df.itertuples(index=False):
+            try:
+                ai_data = await self._ai.research_and_score_city(
+                    city.CityName,
+                    f"State :{city.State}, Country :{city.Country}",
+                    row.EvaluatorProgress,
+                    row.AIScore,
+                    row.PillarWithScores,
+                )
+
+                if not ai_data.get("success"):
+                    logger.warning(
+                        "AI analysis failed for city %d",
+                        city.CityID,
                     )
-
-                    if ai_data["success"]:
-                        cityList.append({
-                            "CityID": row.CityID,
-                            "Year": self.to_int_safe(ai_data['Year']),
-                            "AIScore": self.to_float_safe(ai_data["AIScore"]),
-                            "AIProgress": self.to_float_safe(ai_data["AIProgress"]),
-                            "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
-                            "Discrepancy": self.to_float_safe(ai_data["Discrepancy"]),
-                            "ConfidenceLevel": ai_data['ConfidenceLevel'],
-                            "EvidenceSummary": ai_data['EvidenceSummary'],
-                            "CrossPillarPatterns": ai_data.get('CrossPillarPatterns', ''),
-                            "InstitutionalCapacity": ai_data['InstitutionalCapacity'],
-                            "EquityAssessment": ai_data['EquityAssessment'],
-                            "SustainabilityOutlook": ai_data['SustainabilityOutlook'],
-                            "StrategicRecommendations": ai_data['StrategicRecommendation'],
-                            "DataTransparencyNote": ai_data['DataTransparencyNote'],
-                        })
-
-                        if len(cityList) == 10:
-                            await self.db_service.bulk_upsert_city_evaluations(cityList)
-                            cityList = []
-                    else:
-                        logger.warning(f"AI analysis failed for City {city.CityID}")
-
-                except Exception as e:
-                    logger.error(f"Error processing city evaluation for {city.CityID}: {e}")
                     continue
 
-            if cityList:
-                await self.db_service.bulk_upsert_city_evaluations(cityList)
-                return True
+                batch.append({
+                    "CityID": row.CityID,
+                    "Year": self.to_int_safe(ai_data.get("Year")),
+                    "AIScore": self.to_float_safe(ai_data.get("AIScore")),
+                    "AIProgress": self.to_float_safe(ai_data.get("AIProgress")),
+                    "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
+                    "Discrepancy": self.to_float_safe(ai_data.get("Discrepancy")),
+                    "ConfidenceLevel": ai_data.get("ConfidenceLevel"),
+                    "EvidenceSummary": ai_data.get("EvidenceSummary"),
+                    "CrossPillarPatterns": ai_data.get("CrossPillarPatterns", ""),
+                    "InstitutionalCapacity": ai_data.get("InstitutionalCapacity"),
+                    "EquityAssessment": ai_data.get("EquityAssessment"),
+                    "SustainabilityOutlook": ai_data.get("SustainabilityOutlook"),
+                    "StrategicRecommendations": ai_data.get("StrategicRecommendation"),
+                    "DataTransparencyNote": ai_data.get("DataTransparencyNote"),
+                })
 
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error in analyze_city for city {city.CityID}: {e}")
-            raise
+                batch = await self._flush(
+                    batch,
+                    self.db_service.bulk_upsert_city_evaluations,
+                )
+
+            except Exception as exc:
+                logger.error(
+                    "City evaluation %d: %s",
+                    city.CityID,
+                    exc,
+                    exc_info=True,
+                )
+
+        await self._flush(
+            batch,
+            self.db_service.bulk_upsert_city_evaluations,
+            force=True,
+        )
+
+        await self.db_service.AiRecalculateCityScore(city.CityID)
+
+        return True
+    
+    async def _flushQuestion(
+        self,
+        cityID:int,
+        batch: list[dict],
+        upsert_fn,
+        *,
+        force: bool = False,
+    ) -> list[dict]:
+        """
+        Upsert *batch* when it reaches _BATCH_SIZE (or when force=True).
+        Returns an empty list after flushing, or the original list if not yet full.
+        """
+        if batch and (force or len(batch) >= _BATCH_SIZE):
+            await upsert_fn(batch, cityID)
+            return []
+        return batch
+    
+    async def _flush( self, batch: list[dict], upsert_fn,
+        *,
+        force: bool = False,
+    ) -> list[dict]:
+        """
+        Upsert *batch* when it reaches _BATCH_SIZE (or when force=True).
+        Returns an empty list after flushing, or the original list if not yet full.
+        """
+        if batch and (force or len(batch) >= _BATCH_SIZE):
+            await upsert_fn(batch)
+            return []
+        return batch
+
+    @staticmethod
+    def _safe_normalized(value) -> float:
+        """Return 0.0 if NormalizedValue is None or NaN, otherwise the value."""
+        if value is None:
+            return 0.0
+        if isinstance(value, float) and math.isnan(value):
+            return 0.0
+        return float(value)
+    
+    async def _flush_pillar(
+        self,
+        pillar_batch: list[dict],
+        source_batch: list[dict],
+        *,
+        force: bool = False,
+    ) -> tuple[list[dict], list[dict]]:
+        """Paired flush for pillar records + their source records."""
+        if pillar_batch and (force or len(pillar_batch) >= _BATCH_SIZE):
+            await self.db_service.bulk_upsert_pillar_evaluations(pillar_batch, source_batch)
+            return [], []
+        return pillar_batch, source_batch
 
     async def immediateSituation(self, city_id: int, **_) -> bool:
             """Score the overall city-level peace assessment."""
@@ -452,6 +556,46 @@ class ScoreAnalyzerService:
             
             
             return True
+    
+    def _build_pillar_record( self, row: Any,ai_data: dict[str, Any], city_id: int,) -> dict[str, Any]:
+        """Build pillar evaluation record."""
+
+        return {
+            "CityID": city_id,
+            "PillarID": row.PillarID,
+            "Year": self.to_int_safe(ai_data.get("Year")),
+            "AIScore": self.to_float_safe(ai_data.get("AIScore")),
+            "AIProgress": self.to_float_safe(ai_data.get("AIProgress")),
+            "EvaluatorProgress": self.to_float_safe(row.EvaluatorProgress),
+            "Discrepancy": self.to_float_safe(ai_data.get("Discrepancy")),
+            "ConfidenceLevel": ai_data.get("ConfidenceLevel"),
+            "EvidenceSummary": ai_data.get("EvidenceSummary"),
+            "RedFlags": ai_data.get("RedFlag", ""),
+            "GeographicEquityNote": ai_data.get("GeographicEquityNote"),
+            "InstitutionalAssessment": ai_data.get("InstitutionalAssessment"),
+            "DataGapAnalysis": ai_data.get("DataGapAnalysis"),
+            "AnalystDataGapAnalysis": ai_data.get("AnalystDataGapAnalysis"),
+        }
+
+
+    def _build_source_records( self, row: Any, ai_data: dict[str, Any],) -> list[dict[str, Any]]:
+        """Build source records for pillar evaluation."""
+
+        sources: list[dict[str, Any]] = []
+
+        for src in ai_data.get("Sources", []):
+            sources.append({
+                "CityID": row.CityID,
+                "DataYear": self.to_int_safe(ai_data.get("Year")),
+                "PillarID": row.PillarID,
+                "SourceType": src.get("source_type"),
+                "SourceName": src.get("source_name"),
+                "SourceURL": src.get("source_url"),
+                "DataExtract": src.get("data_extract"),
+                "TrustLevel": self.to_int_safe(src.get("trust_level")),
+            })
+
+        return sources
 
     def _build_immediateSituation_record(self, cityId: int, ai: dict) -> dict:
             summary = ai.get("executive_summary", "")

@@ -21,7 +21,7 @@ class VerdianPromptTemplates:
     # ------------------------------------------------------------------ #
     #  Shared JSON rules block — injected into every prompt              #
     # ------------------------------------------------------------------ #
-    _JSON_RULES = """
+    _JSON_RULES_old = """
         --------------------------------------------------
         JSON OUTPUT FORMAT REQUIREMENTS (CRITICAL)
         --------------------------------------------------
@@ -66,6 +66,68 @@ class VerdianPromptTemplates:
         If valid JSON cannot be guaranteed, return:
         {}
     """
+
+    _JSON_RULES = """
+        ==================================================
+        CRITICAL JSON RESPONSE RULES
+        ==================================================
+
+        Return ONLY valid JSON.
+
+        MANDATORY:
+        - Output must start with {
+        - Output must end with }
+        - No markdown
+        - No explanation
+        - No code fences
+        - No comments
+        - No extra text before or after JSON
+
+        JSON RULES:
+        1. Use ONLY double quotes (")
+        2. Never use single quotes
+        3. No trailing commas
+        4. All keys must be quoted
+        5. All string values must be quoted
+        6. Escape special characters properly:
+        \\n \\t \\\\ \\\"
+        7. Every object must close with }
+        8. Every array must close with ]
+        9. Never leave objects partially completed
+        10. Never truncate output
+        11. Do not invent additional fields
+        12. Do not omit required fields
+        13. Use valid JSON types only:
+        - string
+        - number
+        - boolean
+        - array
+        - object
+        - null
+
+        STRICT OUTPUT REQUIREMENTS:
+        - Keep all content inside the JSON structure
+        - No placeholder text
+        - No ellipsis (...)
+        - No invalid escape sequences
+        - No smart quotes
+        - ASCII characters only
+
+        FINAL VALIDATION BEFORE RESPONSE:
+        - Check commas
+        - Check brackets
+        - Check quote balance
+        - Check object closure
+        - Ensure JSON can be parsed by standard JSON parsers
+        - Validate that the output can be parsed by Python json.loads(). 
+        * If invalid, correct it before responding. 
+        Example of INVALID JSON: { "name": "John", "age": 30, }
+        Example of VALID JSON: { "name": "John", "age": 30 }
+
+        FAIL SAFE:
+        If JSON validity is uncertain, return exactly:
+        {}
+        """
     # ------------------------------------------------------------------ #
     #  Shared output-style block                                          #
     # ------------------------------------------------------------------ #
