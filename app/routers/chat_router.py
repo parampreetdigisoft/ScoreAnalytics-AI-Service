@@ -67,7 +67,7 @@ async def ask(request: ChatCityRequest):
         logger.error(f"Error in chat API: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.post("/global", response_model = CityExecutiveSlidesResult)
+@router.post("/global", response_model = ChatResponse)
 async def ask(request: ChatGlobalRequest):
     """
     Chat endpoint:
@@ -81,7 +81,7 @@ async def ask(request: ChatGlobalRequest):
             historyText = request.historyText 
         )
 
-        return CityExecutiveSlidesResult(
+        return ChatResponse(
             success=True,
             message="Response fetched successfully",
             result=result
