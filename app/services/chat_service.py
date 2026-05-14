@@ -7,6 +7,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.city_prompt import VerdianPromptTemplates
+from app.services.common.pillar_prompts import PillarPrompts
 from app.services.core.repository import DatabaseRepository
 from app.services.rag_query_service import rag_query_service
 
@@ -97,6 +98,163 @@ class ChatService:
 
         return answer
 
+    # ============================================================
+# CHAT SERVICE
+# ============================================================
 
+    async def answer_city_executive_slides( self, city_id: int) -> Dict[str, Any]:
+
+        try:
+
+            year = datetime.now().year
+
+            # ---------------------------------------------------------
+            # CITY CONTEXT
+            # ---------------------------------------------------------
+            ai_city = await self._db.get_ai_city_context(
+                city_id,
+                year
+            )
+
+            if not ai_city:
+                return {
+                    "success": False,
+                    "message": "City context not found"
+                }
+
+            city_name = ai_city["CityName"]
+            country = ai_city["Country"]
+
+            ai_city_context = "\n".join(
+                f"{key}: {value}"
+                for key, value in ai_city.items()
+            )
+
+            # ---------------------------------------------------------
+            # DEFAULT EXECUTIVE QUESTION
+            # ---------------------------------------------------------
+            questionText = f"""
+            Generate a city-wide executive intelligence briefing
+            for {city_name}.
+
+            Analyze:
+            - current operational conditions
+            - governance effectiveness
+            - infrastructure performance
+            - healthcare pressure
+            - environmental risks
+            - social cohesion
+            - housing instability
+            - economic pressure
+            - institutional resilience
+            - public safety conditions
+
+            Identify:
+            - immediate operational concerns
+            - worsening trends
+            - stabilization signals
+            - top city-wide risks
+            - emerging threats
+            - future escalation risks
+
+            Focus on cross-pillar intelligence synthesis
+            and executive situational awareness.
+            """
+
+            # ---------------------------------------------------------
+            # DOCUMENT CONTEXT
+            # ---------------------------------------------------------
+            document_context = await rag_query_service.get_city_document_context(
+                city_id,
+                questionText
+            )
+
+            # ---------------------------------------------------------
+            # BUILD ALL PILLAR CONTEXTS
+            # ---------------------------------------------------------
+            pillar_ids = [
+                1, 2, 3, 4, 5, 6, 7,
+                8, 9, 10, 11, 12, 13, 14
+            ]
+
+            pillar_contexts = []
+
+            for pillar_id in pillar_ids:
+
+                pillar_contexts.append(
+                    PillarPrompts.get_pillar_context(
+                        pillar_id
+                    )
+                )
+
+            all_pillar_contexts = "\n\n".join(
+                pillar_contexts
+            )
+
+            # ---------------------------------------------------------
+            # CALL RAG SERVICE
+            # ---------------------------------------------------------
+            ai_result  = await rag_query_service.city_executive_slides(
+                city_name=city_name,
+                country=country,
+                ai_city_context=ai_city_context,
+                documentContext=document_context,
+                allPillarContexts=all_pillar_contexts,
+                year=year
+            )
+
+
+            if not ai_result.get("success"):
+                return {
+                    "success": False,
+                    "message": "Failed to generate executive slides"
+                }
+
+            data = ai_result["data"]
+
+            # ---------------------------------------------------------
+            # FINAL RESPONSE
+            # ---------------------------------------------------------
+            result = {
+                "cityId": city_id,
+                "cityName": data.get("cityName"),
+
+                "dailyPerformance": {
+                    "trend": data["daily"]["trend"],
+                    "summary": data["daily"]["summary"]
+                },
+
+                "weeklyPerformance": {
+                    "trend": data["weekly"]["trend"],
+                    "summary": data["weekly"]["summary"]
+                },
+
+                "monthlyPerformance": {
+                    "trend": data["monthly"]["trend"],
+                    "summary": data["monthly"]["summary"]
+                },
+
+                "combinedRisks": data["combinedRisks"]["risks"],
+
+                "earlyWarnings": data["earlyWarnings"]["warnings"]
+            }
+
+            return {
+                "success": True,
+                "message": "Executive slides generated successfully",
+                "result": result
+            }
+
+        except Exception as exc:
+
+            logger.exception(
+                "answer_city_executive_slides_question failed"
+            )
+
+            return {
+                "success": False,
+                "error": str(exc)
+            }
+        
 
 chat_service = ChatService()

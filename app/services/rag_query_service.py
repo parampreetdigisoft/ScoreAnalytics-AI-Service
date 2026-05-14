@@ -23,7 +23,7 @@ from typing import List, Dict, Any, Optional
 from app.services.common.city_prompt import VerdianPromptTemplates
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.core.repository import DatabaseRepository
-
+from app.services.common import json_response_parser as jrp
 logger = logging.getLogger(__name__)
 
 CHROMA_PATH = "./chroma_store"
@@ -38,7 +38,7 @@ class RAGQueryService:
     """
 
     def __init__(self) -> None:
-
+        self._llm_svc = LLMBaseService(max_retries=3, retry_delay=1.0)
         # Ensure directory exists
         if not os.path.exists(CHROMA_PATH):
             os.makedirs(CHROMA_PATH)
@@ -456,5 +456,71 @@ class RAGQueryService:
             lines.append(f"{role}: {msg['content']}")
         return "\n".join(lines)
 
+    # ============================================================
+# RAG QUERY SERVICE
+# ============================================================
+
+    async def city_executive_slides( self,  city_name: str, country: str, ai_city_context: str,  documentContext: str, allPillarContexts: str, year: int = None) -> Dict[str, Any]:
+
+        try:
+
+            # ---------------------------------------------------------
+            # SYSTEM PROMPT
+            # ---------------------------------------------------------
+            system_prompt = (
+                VerdianPromptTemplates.city_executive_slides_prompt(
+                    publicContext=ai_city_context,
+                    documentContext=documentContext,
+                    allPillarContexts=allPillarContexts
+                )
+            )
+
+            # ---------------------------------------------------------
+            # USER TEMPLATE
+            # ---------------------------------------------------------
+            user_template = """
+            City:
+            {city_name}
+
+            Country:
+            {country}
+
+            Year:
+            {year}
+            """
+
+            # ---------------------------------------------------------
+            # LLM CALL
+            # ---------------------------------------------------------
+            raw = await self._llm_svc.invoke_chain(
+                system_prompt=system_prompt,
+                user_template=user_template,
+                variables={
+                    "city_name": city_name,
+                    "country": country,
+                    "year": year
+                },
+                label=f"city-executive-slides|{city_name}",
+            )
+
+            analysis = json.loads(
+                jrp.clean_json_response(raw)
+            )
+
+            return {
+                "success": True,
+                "data": analysis
+            }
+
+        except Exception as exc:
+
+            logger.exception(
+                "city_executive_slides failed"
+            )
+
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
 rag_query_service = RAGQueryService()

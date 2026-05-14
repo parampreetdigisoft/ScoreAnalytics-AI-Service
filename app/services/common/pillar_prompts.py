@@ -136,24 +136,7 @@ class PillarPrompts:
             """
         }
         
-        return contexts.get(pillarId, contexts[13]) 
-
-    # @classmethod
-    # def get_pillar_context(cls, pillar_id: int) -> str:
-    #     """Return formatted context string for a given pillar ID (1-23)."""
-    #     if pillar_id not in cls.PILLAR_CONTEXTS:
-    #         return f"No context available for pillar ID {pillar_id}."
-
-    #     pillar = cls.PILLAR_CONTEXTS[pillar_id]
-    #     signals = "\n  - ".join(pillar["search_signals"])
-    #     red_flags = "\n  - ".join(pillar["red_flags"])
-
-    #     return (
-    #         f"PILLAR: {pillar['name']}\n\n"
-    #         f"FOCUS AREAS:\n{pillar['focus']}\n\n"
-    #         f"KEY SEARCH SIGNALS:\n  - {signals}\n\n"
-    #         f"RED FLAGS TO DETECT:\n  - {red_flags}"
-    #     )
+        return contexts.get(pillarId, contexts[13])    
 
     @classmethod
     def get_all_pillar_names(cls) -> dict:
