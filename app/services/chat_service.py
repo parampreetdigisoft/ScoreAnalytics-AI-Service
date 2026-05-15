@@ -57,7 +57,7 @@ class ChatService:
             else:
                 ai_context = await rag_query_service.get_city_document_context(city_id,questionText, pillar_id)
         else:
-            ai_context = await self._db.usp_GetCityDataForLLM(city_id,[faqid],pillar_id)
+            ai_context = await self._db.GetLocalContextDataForLLM([faqid],city_id,pillar_id)
             
         if len(ai_context) < 1:
             ai_context = "\n".join(f"{key}: {value}" for key, value in ai_city_context.items())

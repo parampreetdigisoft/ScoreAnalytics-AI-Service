@@ -356,7 +356,7 @@ class DatabaseRepository:
 
     async def get_FAQ_context(self) -> List[Dict]:
         query = """
-            select FAQID,Related,Category,QuestionText from AIAssistantFAQ
+            select FAQID,Related,Category,QuestionText,ProcName from AIAssistantFAQ
         """
         return await self.engine.fetch_dicts_async(query)
 
