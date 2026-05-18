@@ -186,7 +186,7 @@ class RAGQueryService:
             messages=[
                 {
                     "role": "system",
-                    "content": VerdianPromptTemplates.chat_city_system_prompt(),
+                    "content": VerdianPromptTemplates.chat_system_prompt(),
                 },
                 {
                     "role": "user",

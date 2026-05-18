@@ -1144,6 +1144,7 @@ class VerdianPromptTemplates:
         OUTPUT in MARKDOWN : {PillarPrompts.MARKDOWN_FORMAT_PROMPT}
     """
     
+    @staticmethod
     def chat_system_prompt() -> str:
         return f"""\
             You are **VUI Verdian Urban Index** — the intelligence engine of the Verdian Urban Index (VUI) platform.

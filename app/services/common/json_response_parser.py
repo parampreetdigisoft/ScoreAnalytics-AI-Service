@@ -1,5 +1,5 @@
 """
-    PEM JSON Response Parser
+    VUI JSON Response Parser
     ------------------------
     Handles:
       - Cleaning raw LLM output into valid JSON strings
