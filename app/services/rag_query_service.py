@@ -10,7 +10,7 @@ Stage 1 — LLM-driven TOC routing  (which sections are relevant?)
 Stage 2 — ChromaDB vector search within those sections
 
 LLM calls are handled by LLMBaseService.
-All prompt text comes from PEMPromptTemplates.
+All prompt text comes from VUIPromptTemplates.
 """
 from datetime import datetime
 import os
@@ -34,7 +34,7 @@ class RAGQueryService:
     Hybrid RAG service: LLM-routed TOC selection + ChromaDB vector retrieval.
 
     LLM mechanics live in LLMBaseService (injected).
-    Prompt text lives in PEMPromptTemplates.
+    Prompt text lives in VUIPromptTemplates.
     """
 
     def __init__(self) -> None:
