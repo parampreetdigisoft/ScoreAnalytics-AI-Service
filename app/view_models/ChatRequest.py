@@ -26,3 +26,9 @@ class ChatCityExecutiveSlidesResponse(BaseModel):
     success: bool
     message: str
     result: Any
+
+class ChatCrossComparisionRequest(BaseModel):
+    questionText: str
+    cityIDs: list[int]
+    historyText: Optional[str] = None
+    faqid: Optional[int] = None   

@@ -4,7 +4,7 @@ Fire-and-forget pattern for long-running analysis tasks
 """
 import logging
 from fastapi import APIRouter, HTTPException
-from app.view_models.ChatRequest import ChatCityExecutiveSlidesRequest, ChatCityExecutiveSlidesResponse, ChatCityRequest,ChatGlobalRequest, ChatRequest
+from app.view_models.ChatRequest import ChatCityExecutiveSlidesRequest, ChatCityExecutiveSlidesResponse, ChatCityRequest, ChatCrossComparisionRequest,ChatGlobalRequest, ChatRequest
 from app.view_models.AnalysisRequest import ChatResponse
 from app.view_models.CityExecutiveSlidesResult import CityExecutiveSlidesResult
 logger = logging.getLogger(__name__)
@@ -67,18 +67,14 @@ async def ask(request: ChatCityRequest):
         logger.error(f"Error in chat API: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.post("/global", response_model = ChatResponse)
-async def ask(request: ChatGlobalRequest):
-    """
-    Chat endpoint:
-    - Accepts user question in body
-    - Runs RAG pipeline
-    - Returns AI-generated answer
-    """
+@router.post("/cross-comparision", response_model = ChatResponse)
+async def ask(request: ChatCrossComparisionRequest):
+
     try:
-        result = await chat_service.answer_global_question (
+        result = await chat_service.answer_crossComparision (
             questionText = request.questionText,
-            historyText = request.historyText 
+            cityIDs = request.cityIDs,
+            historyText = request.historyText
         )
 
         return ChatResponse(
@@ -90,6 +86,30 @@ async def ask(request: ChatGlobalRequest):
         logger.error(f"Error in chat API: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     
+
+@router.post("/global", response_model = ChatResponse)
+async def ask(request: ChatGlobalRequest):
+    """
+    Chat endpoint:
+    - Accepts user question in body
+    - Runs RAG pipeline
+    - Returns AI-generated answer
+    """
+    try:
+        result = await chat_service.answer_global_question (
+            questionText = request.questionText,
+            historyText = request.historyText, 
+            faqid = request.faqid,
+        )
+
+        return ChatResponse(
+            success=True,
+            message="Response fetched successfully",
+            result=result
+        )
+    except Exception as e:
+        logger.error(f"Error in chat API: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))    
 # ============================================================
 # ROUTER
 # ============================================================

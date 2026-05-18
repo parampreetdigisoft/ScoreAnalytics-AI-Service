@@ -354,10 +354,16 @@ class DatabaseRepository:
         await self.engine.execute_write_async(query, params)
 
 
-    async def get_FAQ_context(self) -> List[Dict]:
-        query = """
-            select FAQID,Related,Category,QuestionText,ProcName from AIAssistantFAQ
+    async def get_FAQ_context(self, isglobal: bool = False) -> List[Dict]:
+
+        where = "WHERE Related LIKE 'global'" if isglobal else "WHERE Related LIKE 'city'"
+
+        query = f"""
+            SELECT FAQID, Related, Category, QuestionText,ProcName
+            FROM AIAssistantFAQ
+            {where}
         """
+
         return await self.engine.fetch_dicts_async(query)
 
     async def usp_GetCityDataForLLM(self, city_id: int, FAQIDs: List[str], pillarId: Optional[int] = None) -> List[Dict]:
@@ -408,6 +414,19 @@ class DatabaseRepository:
             "EXEC sp_AiInsertAnalyticalLayerResults @CityID = ?",
             (cityID,),
         )
+
+    async def GetCrossComparisionLocalContextDataForLLM(self, city_ids: List[str]) -> List[Dict]:
+
+        query = """
+            EXEC dbo.usp_CityCrossComparision_faq ?
+        """
+
+        params = (
+            json.dumps(city_ids)
+        )
+        response = await self.engine.fetch_dicts_async(query, params)
+
+        return response    
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------

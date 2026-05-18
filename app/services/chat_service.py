@@ -53,11 +53,12 @@ class ChatService:
             relevant_faq_ids = await rag_query_service.get_related_FAQ_IDs(questionText, faqs)
 
             if len(relevant_faq_ids)>0:
+                relevant_faq_ids = relevant_faq_ids[: 3 if historyText == None else 2]
                 ai_context = await self._db.GetLocalContextDataForLLM(relevant_faq_ids,city_id,pillar_id)
             else:
                 ai_context = await rag_query_service.get_city_document_context(city_id,questionText, pillar_id)
         else:
-            ai_context = await self._db.GetLocalContextDataForLLM([faqid],city_id,pillar_id)
+             ai_context = await self._db.GetLocalContextDataForLLM([faqid],city_id,pillar_id)
             
         if len(ai_context) < 1:
             ai_context = "\n".join(f"{key}: {value}" for key, value in ai_city_context.items())
@@ -71,21 +72,18 @@ class ChatService:
     async def answer_global_question (
         self,
         questionText: str,
-        historyText: Optional[str] = None
+        historyText: Optional[str] = None,
+        faqid: Optional[int] = None
     ) -> str:
-        year = datetime.now().year      
-
-        query = """
-            select 
-              FAQID,Related,Category,QuestionText 
-            from AIAssistantFAQ 
-            where Related like '%global%'
-        """
-        faqs = await self._db.engine.fetch_dicts_async(query)
-
-
-        relevant_faq_ids = await rag_query_service.get_related_FAQ_IDs(questionText, faqs)
-
+        year = datetime.now().year    
+        
+        relevant_faq_ids =[]
+        if faqid is None: 
+            faqs = await self._db.get_FAQ_context(True)
+            relevant_faq_ids = await rag_query_service.get_related_FAQ_IDs(questionText, faqs)
+        else :
+            relevant_faq_ids=[faqid]
+            
         if len(relevant_faq_ids)>0:
             ai_context = await self._db.GetLocalContextDataForLLM(relevant_faq_ids)
         else:
@@ -97,112 +95,39 @@ class ChatService:
         answer = await rag_query_service.send_question_to_llm(questionText, ai_context, cityName, pillar_name, historyText)
 
         return answer
-
     # ============================================================
 # CHAT SERVICE
 # ============================================================
 
     async def answer_city_executive_slides( self, city_id: int) -> Dict[str, Any]:
-
         try:
-
             year = datetime.now().year
 
-            # ---------------------------------------------------------
-            # CITY CONTEXT
-            # ---------------------------------------------------------
-            ai_city = await self._db.get_ai_city_context(
-                city_id,
-                year
-            )
+            ai_city = await self._db.get_ai_city_context(city_id, year)
+
 
             if not ai_city:
                 return {
                     "success": False,
-                    "message": "City context not found"
+                    "message": "city context not found"
                 }
 
             city_name = ai_city["CityName"]
-            country = ai_city["Country"]
 
             ai_city_context = "\n".join(
                 f"{key}: {value}"
                 for key, value in ai_city.items()
             )
 
-            # ---------------------------------------------------------
-            # DEFAULT EXECUTIVE QUESTION
-            # ---------------------------------------------------------
-            questionText = f"""
-            Generate a city-wide executive intelligence briefing
-            for {city_name}.
+            all_pillar_contexts = PillarPrompts.get_all_pillar_names()
 
-            Analyze:
-            - current operational conditions
-            - governance effectiveness
-            - infrastructure performance
-            - healthcare pressure
-            - environmental risks
-            - social cohesion
-            - housing instability
-            - economic pressure
-            - institutional resilience
-            - public safety conditions
-
-            Identify:
-            - immediate operational concerns
-            - worsening trends
-            - stabilization signals
-            - top city-wide risks
-            - emerging threats
-            - future escalation risks
-
-            Focus on cross-pillar intelligence synthesis
-            and executive situational awareness.
-            """
-
-            # ---------------------------------------------------------
-            # DOCUMENT CONTEXT
-            # ---------------------------------------------------------
-            document_context = await rag_query_service.get_city_document_context(
-                city_id,
-                questionText
-            )
-
-            # ---------------------------------------------------------
-            # BUILD ALL PILLAR CONTEXTS
-            # ---------------------------------------------------------
-            pillar_ids = [
-                1, 2, 3, 4, 5, 6, 7,
-                8, 9, 10, 11, 12, 13, 14
-            ]
-
-            pillar_contexts = []
-
-            for pillar_id in pillar_ids:
-
-                pillar_contexts.append(
-                    PillarPrompts.get_pillar_context(
-                        pillar_id
-                    )
-                )
-
-            all_pillar_contexts = "\n\n".join(
-                pillar_contexts
-            )
-
-            # ---------------------------------------------------------
-            # CALL RAG SERVICE
-            # ---------------------------------------------------------
             ai_result  = await rag_query_service.city_executive_slides(
                 city_name=city_name,
-                country=country,
+                country=ai_city["Country"],
                 ai_city_context=ai_city_context,
-                documentContext=document_context,
                 allPillarContexts=all_pillar_contexts,
                 year=year
             )
-
 
             if not ai_result.get("success"):
                 return {
@@ -212,26 +137,13 @@ class ChatService:
 
             data = ai_result["data"]
 
-            # ---------------------------------------------------------
-            # FINAL RESPONSE
-            # ---------------------------------------------------------
             result = {
                 "cityId": city_id,
                 "cityName": data.get("cityName"),
 
-                "dailyPerformance": {
-                    "trend": data["daily"]["trend"],
-                    "summary": data["daily"]["summary"]
-                },
-
-                "weeklyPerformance": {
-                    "trend": data["weekly"]["trend"],
-                    "summary": data["weekly"]["summary"]
-                },
-
-                "monthlyPerformance": {
-                    "trend": data["monthly"]["trend"],
-                    "summary": data["monthly"]["summary"]
+                "recentPerformance": {
+                    "trend": data["recentPerformance"]["trend"],
+                    "summary": data["recentPerformance"]["summary"]
                 },
 
                 "combinedRisks": data["combinedRisks"]["risks"],
@@ -256,5 +168,60 @@ class ChatService:
                 "error": str(exc)
             }
         
+    async def answer_crossComparision(
+        self,
+        questionText: str,
+        cityIDs: list[int],
+        historyText: Optional[str] = None,
+    ) -> str:
 
+        year = datetime.now().year
+
+        countries = []
+
+        if len(cityIDs) > 0:
+            query = f"""
+                SELECT CityName, Country
+                FROM Cities
+                WHERE CityID IN ({",".join(map(str, cityIDs))})
+            """
+
+            cities = await self._db.engine.fetch_dicts_async(query)
+
+        relevant_faq_ids = []
+
+        if len(cityIDs) == 0:
+            faqs = await self._db.get_FAQ_context(True)
+            relevant_faq_ids = await rag_query_service.get_related_FAQ_IDs(
+                questionText,
+                faqs
+            )
+        else:
+            relevant_faq_ids = cityIDs
+
+        if len(relevant_faq_ids) > 0:
+            ai_context = await self._db.GetCrossComparisionLocalContextDataForLLM(
+                relevant_faq_ids
+            )
+        else:
+            ai_context = await rag_query_service.get_global_document_context(
+                questionText
+            )
+
+        cityName = ", ".join(
+            [city["CityName"] for city in cities]
+        )
+
+        pillar_name = "Get pillars from provided context"
+
+        answer = await rag_query_service.send_question_to_llm(
+            questionText,
+            ai_context,
+            cityName,
+            pillar_name,
+            historyText
+        )
+
+        return answer
+    
 chat_service = ChatService()

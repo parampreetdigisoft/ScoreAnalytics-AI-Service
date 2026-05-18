@@ -203,33 +203,60 @@ class RAGQueryService:
 
 
     async def send_question_to_llm(
-            self,
-            questionText: str,
-            ai_context: str,
-            cityName: str,
-            pillar_name: str,
-            historyText: Optional[str] = None,
-        ) -> str:
+        self,
+        questionText: str,
+        ai_context: str,
+        cityName: str,
+        pillar_name: str,
+        historyText: Optional[str] = None,
+    ) -> str:
 
-            # Stage 3 — LLM answer synthesis
-            answer = await self._llm_svc.invoke_messages(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": VerdianPromptTemplates.chat_city_system_prompt(),
-                    },
-                    {
-                        "role": "user",
-                        "content": VerdianPromptTemplates.chat_answer_user_prompt(
-                            ai_context, historyText, questionText, cityName, pillar_name
-                        ),
-                    },
-                ],
-                label=f"rag_answer|city{cityName}",
-            )
+        # Stage 3 — LLM answer synthesis
+        answer = await self._llm_svc.invoke_messages(
+            messages=[
+                {
+                    "role": "system",
+                    "content": VerdianPromptTemplates.chat_system_prompt(),
+                },
+                {
+                    "role": "user",
+                    "content": VerdianPromptTemplates.chat_answer_user_prompt(
+                        ai_context, historyText, questionText, cityName, pillar_name
+                    ),
+                },
+            ],
+            label=f"rag_answer|city{cityName}",
+        )
 
-            return answer
+        return answer
 
+    async def send_cross_comparision_question_to_llm(
+        self,
+        questionText: str,
+        ai_context: str,
+        cityName: str,
+        pillar_name: str,
+        historyText: Optional[str] = None,
+    ) -> str:
+
+        # Stage 3 — LLM answer synthesis
+        answer = await self._llm_svc.invoke_messages(
+            messages=[
+                {
+                    "role": "system",
+                    "content": VerdianPromptTemplates.chat_system_prompt(),
+                },
+                {
+                    "role": "user",
+                    "content": VerdianPromptTemplates.chat_answer_user_prompt(
+                        ai_context, historyText, questionText, cityName, pillar_name
+                    ),
+                },
+            ],
+            label=f"rag_answer|city{cityName}",
+        )
+
+        return answer
 
     # ------------------------------------------------------------------ #
     #  Stage 1 — DB: fetch TOC                                           #
@@ -407,9 +434,9 @@ class RAGQueryService:
             f"[{row['FAQID']}] (QuestionText {row['QuestionText']}) {row['Category']}"
             for row in toc
         )
-        prompt = VerdianPromptTemplates.rag_routing_prompt(toc_text, question)
+        prompt = VerdianPromptTemplates.get_relevant_faqId_prompt(toc_text, question)
         raw = await self._llm_svc.invoke_raw(
-            prompt, label=f"rag_routing|q={question[:40]}"
+            prompt, label=f"rag_routing|q={question[:80]}"
         )
 
         match = re.search(r"\[[\d,\s]*\]", raw)
@@ -460,7 +487,7 @@ class RAGQueryService:
 # RAG QUERY SERVICE
 # ============================================================
 
-    async def city_executive_slides( self,  city_name: str, country: str, ai_city_context: str,  documentContext: str, allPillarContexts: str, year: int = None) -> Dict[str, Any]:
+    async def city_executive_slides( self,  city_name: str, country: str, ai_city_context: str, allPillarContexts: str, year: int = None) -> Dict[str, Any]:
 
         try:
 
@@ -469,8 +496,7 @@ class RAGQueryService:
             # ---------------------------------------------------------
             system_prompt = (
                 VerdianPromptTemplates.city_executive_slides_prompt(
-                    publicContext=ai_city_context,
-                    documentContext=documentContext,
+                    publicContext=ai_city_context,                   
                     allPillarContexts=allPillarContexts
                 )
             )
