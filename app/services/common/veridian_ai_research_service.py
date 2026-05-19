@@ -376,7 +376,7 @@ class VerdianAIResearchService:
     documentContext: Optional[str],
     year: int = None,
     ) -> Dict[str, Any]:
-        """Produce a cross-pillar city-level peace assessment."""
+        """Produce a cross-pillar city-level urban assessment."""
 
         try:
             # Decide which prompt to use

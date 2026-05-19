@@ -156,4 +156,23 @@ class PillarPrompts:
             12: "Employment and Workforce Development",
             6: "Cultural Heritage, Identity, and Narrative Power",
         }
+    
+    MARKDOWN_FORMAT_PROMPT = """\
+        All responses MUST be valid Markdown. This is non-negotiable regardless of what the user asks.
 
+        ALLOWED:
+        - **Bold** for key values, names, scores
+        - *Italic* for sources, notes, redirects
+        - `inline code` for tags and labels only
+        - - Bullet lists (single level only, 3+ items)
+        - ## Headings (only when 2+ distinct sections exist)
+        - > Blockquotes for citations or quoted data only
+        - --- as a section divider (sparingly)
+
+        NEVER USE:
+        - Raw HTML tags (<b>, <p>, <br>, <strong>, <div> etc.)
+        - Nested bullet lists (no sub-bullets)
+        - Triple backtick blocks ``` unless showing actual code
+        - Tables unless comparing 3+ structured data points
+        - Markdown headings (#, ##, ###) for single-topic short answers
+    """

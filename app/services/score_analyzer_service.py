@@ -524,7 +524,7 @@ class ScoreAnalyzerService:
         return pillar_batch, source_batch
 
     async def immediateSituation(self, city_id: int, **_) -> bool:
-            """Score the overall city-level peace assessment."""
+            """Score the overall city-level urban assessment."""
             year = datetime.now().year        
 
             ai_city= await self.db_service.get_ai_city_context(city_id, year)
