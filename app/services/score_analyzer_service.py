@@ -484,7 +484,7 @@ class ScoreAnalyzerService:
         Returns an empty list after flushing, or the original list if not yet full.
         """
         if batch and (force or len(batch) >= _BATCH_SIZE):
-            await upsert_fn(batch, cityID)
+            await upsert_fn(batch)
             return []
         return batch
     

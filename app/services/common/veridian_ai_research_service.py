@@ -83,7 +83,7 @@ class VerdianAIResearchService:
                 pillar_context = PillarPrompts.get_pillar_context(pillarID)
 
                 prompt = ChatPromptTemplate.from_messages([
-                    ("system", VerdianPromptTemplates._get_question_system_prompt(self)),
+                    ("system", VerdianPromptTemplates._get_question_system_prompt(self, city_name, city_address, scoreProgress, evaluator_score, pillar_context)),
                     ("user", """Conduct independent research and provide evidence-based scoring.
                      
                     City: {city_name}
@@ -206,7 +206,7 @@ class VerdianAIResearchService:
             
             # Create the prompt
             prompt = ChatPromptTemplate.from_messages([
-                ("system",VerdianPromptTemplates._get_pillar_system_prompt(self)),
+                ("system",VerdianPromptTemplates._get_pillar_system_prompt(self, city_name, pillar_name, year, evaluator_context, ai_input_context, pillar_context)),
                 (
                     "user",
                     """Research and score the following pillar:
@@ -306,7 +306,7 @@ class VerdianAIResearchService:
             
             
             prompt = ChatPromptTemplate.from_messages([
-                ("system",VerdianPromptTemplates._get_city_system_prompt(self)),
+                ("system",VerdianPromptTemplates._get_city_system_prompt(self, city_name, city_address, year, evaluator_score, aIScore, pillars_context)),
                 ("user", """Conduct comprehensive city-wide assessment:
 
                 City: {city_name}
