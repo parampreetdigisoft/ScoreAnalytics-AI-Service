@@ -229,32 +229,24 @@ class ScoreAnalyzerService:
 ) -> bool:
         """Analyze pillar questions data for a city."""
 
+        year = datetime.now().year
+        
         city_id = int(city.CityID)
 
-        if missing_only:
-
-            year = datetime.now().year
-
-            where = f"""
-                CityID = {city_id}
-                AND QuestionID IS NOT NULL
-                AND NOT EXISTS
-                (
-                    SELECT 1
-                    FROM AIEstimatedQuestionScores ai
-                    WHERE ai.CityID = vw_AiCityPillarQuestionEvaluations.CityID
-                    AND ai.PillarID = vw_AiCityPillarQuestionEvaluations.PillarID
-                    AND ai.QuestionID = vw_AiCityPillarQuestionEvaluations.QuestionID
-                    AND ai.Year = {year}
-                )
-            """
-
-        else:
-
-            where = f"CityID = {city_id}"
+        where = f"CityID = {city_id}"
 
         if pillar_id is not None:
             where += f" AND PillarID = {pillar_id}"
+
+
+        if missing_only:           
+
+            where += f"""
+                AND QuestionID NOT EXISTS
+                (
+                    select QuestionID from AIEstimatedQuestionScores where Year = {year}
+                )
+            """
 
         df = await self.db_service.get_view_data(
             "vw_AiCityPillarQuestionEvaluations",
