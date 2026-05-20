@@ -4,6 +4,7 @@ Fire-and-forget pattern for long-running analysis tasks
 """
 import logging
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from app.view_models.AnalysisRequest import AnalysisResponse
 from app.services.score_analyzer_service import score_analyzer_service
@@ -50,6 +51,66 @@ async def analyze_all_cities_full():
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/analyze/missing-pillar-questions", response_model=AnalysisResponse)
+async def analyze_missing_pillar_questions(
+    city_id: int,
+    pillar_id: Optional[int] = None,
+):
+    """
+    Analyze only missing AI pillar question evaluations
+    for a city and optional pillar.
+    Runs in background.
+    """
+
+    try:
+
+        city = await score_analyzer_service._get_city_data(
+            city_id
+        )
+
+        if city.empty:
+            raise HTTPException(
+                status_code=404,
+                detail=f"City not found: {city_id}"
+            )
+
+        asyncio.create_task(
+            run_analysis_task(
+                f"analyze_missing_pillar_questions_{city_id}",
+                score_analyzer_service.analyze_PillarQuestions(
+                    city,
+                    pillar_id,
+                    True
+                )
+            )
+        )
+
+        return AnalysisResponse(
+            success=True,
+            message=(
+                "Missing pillar question analysis started "
+                "successfully in background."
+            ),
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        error_msg = (
+            f"Error starting missing pillar question analysis: {str(e)}"
+        )
+
+        logger.error(
+            error_msg,
+            exc_info=True
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 @router.post("/analyze/{city_id}/full", response_model=AnalysisResponse)
 async def analyze_single_city_full(city_id: int):

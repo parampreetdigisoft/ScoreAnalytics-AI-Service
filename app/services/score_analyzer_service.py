@@ -167,7 +167,7 @@ class ScoreAnalyzerService:
     async def analyze_Single_Pillar(self, cityId: int, pillar_id: Optional[int] = None) -> bool:
         """Analyze specific pillar for a city"""
         try:
-            df = self._get_city_data(cityId)
+            df = await self._get_city_data(cityId)
             if df.empty:
                 return False
 
@@ -183,7 +183,7 @@ class ScoreAnalyzerService:
     async def analyze_questions_of_city_pillar(self, cityId: int, pillar_id: Optional[int] = None) -> bool:
         """Analyze questions for city pillar"""
         try:
-            df = self._get_city_data(cityId)
+            df = await self._get_city_data(cityId)
             if df.empty:
                 return False
 
@@ -222,13 +222,37 @@ class ScoreAnalyzerService:
         }
 
     async def analyze_PillarQuestions(
-        self,
-        city: Any,
-        pillar_id: Optional[int] = None,
-    ) -> bool:
+    self,
+    city: Any,
+    pillar_id: Optional[int] = None,
+    missing_only: bool = False
+) -> bool:
         """Analyze pillar questions data for a city."""
 
-        where = f"cityId = {city.CityID}"
+        city_id = int(city.CityID)
+
+        if missing_only:
+
+            year = datetime.now().year
+
+            where = f"""
+                CityID = {city_id}
+                AND QuestionID IS NOT NULL
+                AND NOT EXISTS
+                (
+                    SELECT 1
+                    FROM AIEstimatedQuestionScores ai
+                    WHERE ai.CityID = vw_AiCityPillarQuestionEvaluations.CityID
+                    AND ai.PillarID = vw_AiCityPillarQuestionEvaluations.PillarID
+                    AND ai.QuestionID = vw_AiCityPillarQuestionEvaluations.QuestionID
+                    AND ai.Year = {year}
+                )
+            """
+
+        else:
+
+            where = f"CityID = {city_id}"
+
         if pillar_id is not None:
             where += f" AND PillarID = {pillar_id}"
 
@@ -240,7 +264,7 @@ class ScoreAnalyzerService:
         if df.empty:
             logger.info(
                 "No pillar questions found: city %d (%s)",
-                city.CityID,
+                city_id,
                 city.CityName,
             )
             return False
@@ -252,11 +276,16 @@ class ScoreAnalyzerService:
         )
 
         for pid in target_pillars:
+
             batch: list[dict[str, Any]] = []
 
             for row in df[df["PillarID"] == pid].itertuples(index=False):
+
                 try:
-                    normalized_value = self._safe_normalized(row.NormalizedValue)
+
+                    normalized_value = self._safe_normalized(
+                        row.NormalizedValue
+                    )
 
                     ai_data = await self._ai.research_and_score_question(
                         city.CityName,
@@ -270,11 +299,13 @@ class ScoreAnalyzerService:
                     )
 
                     if not ai_data.get("success"):
+
                         logger.warning(
                             "AI analysis failed for question %d in city %d",
                             row.QuestionID,
-                            city.CityID,
+                            city_id,
                         )
+
                         continue
 
                     batch.append(
@@ -286,32 +317,34 @@ class ScoreAnalyzerService:
                     )
 
                     batch = await self._flushQuestion(
-                        city.CityID,
+                        city_id,
                         batch,
                         self.db_service.bulk_upsert_question_evaluations,
                     )
 
                 except Exception as exc:
+
                     logger.error(
                         "Question %d, city %d: %s",
                         row.QuestionID,
-                        city.CityID,
+                        city_id,
                         exc,
                         exc_info=True,
                     )
 
             await self._flushQuestion(
-                city.CityID,
+                city_id,
                 batch,
                 self.db_service.bulk_upsert_question_evaluations,
                 force=True,
             )
 
             await self.db_service.AiInsertAnalyticalLayerResults(
-                city.CityID
+                city_id
             )
 
-        return True
+        return True    
+
 
     async def analyze_cityPillar( self, city: Any, pillar_id: Optional[int] = None,) -> bool:
         """Score every pillar for a city."""
