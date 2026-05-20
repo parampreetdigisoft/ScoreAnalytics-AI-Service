@@ -242,7 +242,7 @@ class ScoreAnalyzerService:
         if missing_only:           
 
             where += f"""
-                AND QuestionID NOT EXISTS
+                AND QuestionID NOT In
                 (
                     select QuestionID from AIEstimatedQuestionScores where Year = {year}
                 )
