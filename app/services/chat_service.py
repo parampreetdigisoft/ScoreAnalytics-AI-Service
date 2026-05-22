@@ -177,7 +177,7 @@ class ChatService:
 
         year = datetime.now().year
 
-        countries = []
+        cities = []
 
         if len(cityIDs) > 0:
             query = f"""

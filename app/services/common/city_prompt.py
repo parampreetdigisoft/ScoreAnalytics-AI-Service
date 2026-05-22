@@ -809,15 +809,17 @@ class VerdianPromptTemplates:
     The evidence_summary field MUST follow this exact 8-section structure. Each section is mandatory.
     Target length: 550-700 words total. Write in flowing prose — no section headers, no bullet points.
 
-    SECTION 1 — CITY SCORE AND OVERVIEW (1 paragraph, ~60 words):
-    You MUST begin the paragraph using the EXACT sentence structure below. Do not change wording, order, or phrasing except for placeholders:
-    "[City] achieves an overall VUI score of [X]% percent across 14 pillars and 110 KPIs, placing it [above/at/below] the median among [peer group description]."
+   SECTION 1 — CITY OVERVIEW (1 paragraph, ~60 words):
+
+    You MUST begin the paragraph using the EXACT sentence structure below. Do not change wording, order, or phrasing except for placeholders:   
+
     Rules:
-    - The phrase "percent across 14 pillars" MUST appear exactly as written.
-    - Do NOT omit, rephrase, or move "percent across 14 pillars".
-    - Do NOT modify the sentence structure and not repeat "percent across" word in the response mutiple time just once.
+    - Do NOT mention scores, percentages, pillars, KPIs, rankings, or benchmark values.
+    - Do NOT reference numerical performance indicators in the opening sentence.
+    - Keep the tone analytical and neutral.
     - After this sentence, continue naturally to complete a single paragraph (~60 words total).
-    The paragraph must clearly answer: How well is this city functioning overall?
+    - The paragraph must clearly answer: How well is this city functioning overall?
+    - Focus on governance, infrastructure, livability, economic conditions, sustainability, and public service effectiveness in a concise overview.
 
 
     SECTION 2 — SYSTEM DIAGNOSIS (1 paragraph, ~80 words):
