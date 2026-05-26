@@ -12,7 +12,7 @@ Stage 2 — ChromaDB vector search within those sections
 LLM calls are handled by LLMBaseService.
 All prompt text comes from VUIPromptTemplates.
 """
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 import re
 import chromadb
@@ -22,6 +22,7 @@ from chromadb.utils import embedding_functions
 from typing import List, Dict, Any, Optional
 from app.services.common.city_prompt import VerdianPromptTemplates
 from app.services.common.llm_base_service import LLMBaseService
+from app.services.common.pillar_prompts import PillarPrompts
 from app.services.core.repository import DatabaseRepository
 from app.services.common import json_response_parser as jrp
 logger = logging.getLogger(__name__)
@@ -549,4 +550,113 @@ class RAGQueryService:
                 "error": str(exc)
             }
 
+    async def emerging_trends_and_issues(
+        self,
+        city_count: int = 8,
+    ) -> Dict[str, Any]:
+        try:
+            city_count = max(4, min(8, city_count))
+
+            system_prompt = VerdianPromptTemplates.emerging_trend_risk_prompt()
+
+            user_template = """
+            Generate the public LIVE homepage emerging issues and trends feed.
+
+            Current UTC datetime (now):
+            {current_date}
+
+            Live coverage window start (48 hours before now):
+            {recency_cutoff}
+
+            Required number of country cards:
+            {city_count}
+
+            Recency enforcement:
+            - Default: every card must cite a development published within the last 48 hours.
+            - Older context only for actively developing trends, only if needed to show the
+              pattern emerging over time, and only together with a last-48-hours development.
+
+            Before writing JSON:
+            - Run live web search for each country using the 48-hour window.
+            - For each sourceUrl, use ONLY a URL returned by search (copied exactly),
+              OR a Google News search URL for that story if no article URL is verified.
+            - Never invent Reuters/BBC/AP article paths or slug patterns.
+            """
+
+            now_utc = datetime.now(timezone.utc)
+            raw = await self._llm_svc.invoke_chain(
+                system_prompt=system_prompt,
+                user_template=user_template,
+                variables={
+                    "current_date": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "recency_cutoff": (now_utc - timedelta(hours=48)).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "city_count": city_count,
+                },
+                label="emerging-trends-and-issues",
+            )
+
+            analysis = json.loads(jrp.clean_json_response(raw))
+
+            return {
+                "success": True,
+                "data": analysis,
+            }
+
+        except Exception as exc:
+            logger.exception("emerging_trends_and_issues failed")
+
+            return {
+                "success": False,
+                "error": str(exc),
+            }
+
+    
+    async def pillar_live_signals(self) -> Dict[str, Any]:
+        try:
+            system_prompt = PillarPrompts.pillar_live_signals_prompt()
+
+            user_template = """
+            Generate the LIVE global VUI pillar signals feed (all 14 pillars).
+
+            Current UTC datetime (now):
+            {current_date}
+
+            Live coverage window start (48 hours before now):
+            {recency_cutoff}
+
+            Requirements:
+            - Exactly 14 entries: pillarId 1 through 14, each once.
+            - Search each pillar domain before writing its card.
+            - Use verified sourceUrl rules from the system prompt.
+            """
+
+            now_utc = datetime.now(timezone.utc)
+            raw = await self._llm_svc.invoke_chain(
+                system_prompt=system_prompt,
+                user_template=user_template,
+                variables={
+                    "current_date": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "recency_cutoff": (now_utc - timedelta(hours=48)).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                },
+                label="pillar-live-signals",
+            )
+
+            analysis = json.loads(jrp.clean_json_response(raw))
+
+            return {
+                "success": True,
+                "data": analysis,
+            }
+
+        except Exception as exc:
+            logger.exception("pillar_live_signals failed")
+
+            return {
+                "success": False,
+                "error": str(exc),
+            }
 rag_query_service = RAGQueryService()

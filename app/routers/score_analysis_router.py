@@ -6,6 +6,7 @@ import logging
 import asyncio
 from typing import Optional
 from fastapi import APIRouter, HTTPException
+from app.view_models.MissingPillarQuestionRequest import MissingPillarQuestionRequest
 from app.view_models.AnalysisRequest import AnalysisResponse
 from app.services.score_analyzer_service import score_analyzer_service
 logger = logging.getLogger(__name__)
@@ -51,11 +52,8 @@ async def analyze_all_cities_full():
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/analyze/missing-pillar-questions", response_model=AnalysisResponse)
-async def analyze_missing_pillar_questions(
-    city_id: int,
-    pillar_id: Optional[int] = None,
-):
+@router.post("/analyze/missing-pillar-questions",response_model=AnalysisResponse)
+async def analyze_missing_pillar_questions(request: MissingPillarQuestionRequest):
     """
     Analyze only missing AI pillar question evaluations
     for a city and optional pillar.
@@ -63,25 +61,23 @@ async def analyze_missing_pillar_questions(
     """
 
     try:
-
         city = await score_analyzer_service._get_city_data(
-            city_id
+            request.cityID
         )
 
         if city.empty:
             raise HTTPException(
                 status_code=404,
-                detail=f"City not found: {city_id}"
+                detail=f"City not found: {request.cityID}"
             )
-
         asyncio.create_task(
             run_analysis_task(
-                f"analyze_missing_pillar_questions_{city_id}",
+                f"analyze_missing_pillar_questions_{request.cityID}_{request.pillarID}",
                 score_analyzer_service.analyze_PillarQuestions(
                     city,
-                    pillar_id,
+                    request.pillarID,
                     True
-                )
+                )                
             )
         )
 
@@ -97,15 +93,11 @@ async def analyze_missing_pillar_questions(
         raise
 
     except Exception as e:
-
         error_msg = (
             f"Error starting missing pillar question analysis: {str(e)}"
         )
 
-        logger.error(
-            error_msg,
-            exc_info=True
-        )
+        logger.error(error_msg, exc_info=True)
 
         raise HTTPException(
             status_code=500,
