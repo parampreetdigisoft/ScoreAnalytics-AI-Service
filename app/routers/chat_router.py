@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from app.view_models.ChatRequest import ChatCityExecutiveSlidesRequest, ChatCityExecutiveSlidesResponse, ChatCityRequest, ChatCrossComparisionRequest,ChatGlobalRequest, ChatRequest
 from app.view_models.AnalysisRequest import ChatResponse
-from app.view_models.CityExecutiveSlidesResult import CityExecutiveSlidesResult
+from app.view_models.EmergingTrendsResult import ChatEmergingTrendsResponse
 logger = logging.getLogger(__name__)
 from app.services.chat_service import chat_service
 
@@ -155,3 +155,39 @@ async def ask_city_executive_slides(
             status_code=500,
             detail=str(e)
         )
+
+
+@router.get(
+    "/emerging-trends-and-issues",
+    response_model=ChatEmergingTrendsResponse,
+    summary="Public emerging city trends and issues feed",
+)
+async def get_emerging_trends_and_issues():
+    """
+    Public homepage feed: top 12 cities currently in the news for issues,
+    conflict, risks, or positive trends — written for a general audience.
+    """
+    try:
+        response = await chat_service.get_emerging_trends_and_issues()
+
+        if not response.get("success"):
+            raise HTTPException(
+                status_code=502,
+                detail=response.get("message", "Failed to generate emerging trends"),
+            )
+
+        return ChatEmergingTrendsResponse(
+            success=True,
+            message=response["message"],
+            result=response["result"],
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(
+            f"Error in emerging trends API: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=str(e))

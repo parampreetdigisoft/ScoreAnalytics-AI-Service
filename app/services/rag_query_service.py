@@ -12,7 +12,7 @@ Stage 2 — ChromaDB vector search within those sections
 LLM calls are handled by LLMBaseService.
 All prompt text comes from VUIPromptTemplates.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import re
 import chromadb
@@ -548,5 +548,54 @@ class RAGQueryService:
                 "success": False,
                 "error": str(exc)
             }
+
+
+    async def emerging_trends_and_issues(
+        self,
+        city_count: int = 12,
+    ) -> Dict[str, Any]:
+        try:
+            city_count = 12
+
+            system_prompt = VerdianPromptTemplates.emerging_trend_risk_prompt()
+
+            user_template = """
+            Generate the public homepage emerging city issues and trends feed.
+
+            Current UTC datetime:
+            {current_date}
+
+            Required number of city cards:
+            {city_count}
+
+            Return exactly 12 distinct cities from different parts of the world.
+            Write every title and summary for a general public audience.
+            """
+
+            raw = await self._llm_svc.invoke_chain(
+                system_prompt=system_prompt,
+                user_template=user_template,
+                variables={
+                    "current_date": datetime.now(timezone.utc),
+                    "city_count": city_count,
+                },
+                label="emerging-trends-and-issues-cities",
+            )
+
+            analysis = json.loads(jrp.clean_json_response(raw))
+
+            return {
+                "success": True,
+                "data": analysis,
+            }
+
+        except Exception as exc:
+            logger.exception("emerging_trends_and_issues failed")
+
+            return {
+                "success": False,
+                "error": str(exc),
+            }
+
 
 rag_query_service = RAGQueryService()
