@@ -3,10 +3,12 @@ Score analysis Router - API endpoints with database exception logging
 Fire-and-forget pattern for long-running analysis tasks
 """
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.view_models.ChatRequest import ChatCityExecutiveSlidesRequest, ChatCityExecutiveSlidesResponse, ChatCityRequest, ChatCrossComparisionRequest,ChatGlobalRequest, ChatRequest
 from app.view_models.AnalysisRequest import ChatResponse
+from app.view_models.CityExecutiveSlidesResult import CityExecutiveSlidesResult
 from app.view_models.EmergingTrendsResult import ChatEmergingTrendsResponse
+from app.view_models.PillarLiveSignalsResult import ChatPillarLiveSignalsResponse
 logger = logging.getLogger(__name__)
 from app.services.chat_service import chat_service
 
@@ -156,19 +158,28 @@ async def ask_city_executive_slides(
             detail=str(e)
         )
 
-
 @router.get(
     "/emerging-trends-and-issues",
     response_model=ChatEmergingTrendsResponse,
-    summary="Public emerging city trends and issues feed",
+    summary="Global emerging trends and issues feed",
 )
-async def get_emerging_trends_and_issues():
+async def get_emerging_trends_and_issues(
+    cityCount: int = Query(
+        default=8,
+        ge=4,
+        le=8,
+        description="Number of city intelligence cards to return (4–8).",
+    ),
+):
     """
-    Public homepage feed: top 12 cities currently in the news for issues,
-    conflict, risks, or positive trends — written for a general audience.
+    Public homepage feed for emerging global risks and stability trends.
+
+    Returns structured city cards suitable for a public-facing UI.
     """
     try:
-        response = await chat_service.get_emerging_trends_and_issues()
+        response = await chat_service.get_emerging_trends_and_issues(
+            city_count=cityCount
+        )
 
         if not response.get("success"):
             raise HTTPException(
@@ -188,6 +199,42 @@ async def get_emerging_trends_and_issues():
     except Exception as e:
         logger.error(
             f"Error in emerging trends API: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get(
+    "/pillar-live-signals",
+    response_model=ChatPillarLiveSignalsResponse,
+    summary="Live global VUI pillar signals (all 14 pillars)",
+)
+    
+
+async def get_pillar_live_signals():
+    """
+    Public feed: one concise live signal per Verdian Urban Index pillar (IDs 1–14).
+    """
+    try:
+        response = await chat_service.get_pillar_live_signals()
+
+        if not response.get("success"):
+            raise HTTPException(
+                status_code=502,
+                detail=response.get("message", "Failed to generate pillar live signals"),
+            )
+
+        return ChatPillarLiveSignalsResponse(
+            success=True,
+            message=response["message"],
+            result=response["result"],
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(
+            f"Error in pillar live signals API: {str(e)}",
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail=str(e))

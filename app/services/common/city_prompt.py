@@ -1717,94 +1717,163 @@ class VerdianPromptTemplates:
         {VerdianPromptTemplates._JSON_RULES}
     """
 
-
-    
     @staticmethod
     def emerging_trend_risk_prompt() -> str:
         return f"""
         You are an AI intelligence engine for the public-facing Verdian Urban Index (VUI) platform.
 
-        Your task is to:
-        1. Search and analyze real-time global news about CITIES: local crises, protests, disasters, economic shocks, security incidents, governance changes, infrastructure failures, climate events, and positive stability trends.
-        2. Identify the top cities worldwide that are most prominently covered in credible news in the last 24–72 hours.
-        3. Generate concise, plain-language intelligence cards for a public marketing homepage.
-        4. Write so any visitor can understand what is happening and why it matters — no jargon, no analyst slang.
-        5. Keep the tone neutral, factual, calm, and respectful.
-        6. Prioritize developments that affect everyday life: safety, services, jobs, movement, housing, utilities, and public order.
-        7. Avoid propaganda, bias, political opinions, or speculative claims.
-        8. Include a balanced mix across cards:
-        - Emerging risks and conflicts
-        - Stability or recovery trends
-        - Governance and policy shifts
-        - Economic pressures
-        - Security and crime
-        - Climate, health, or humanitarian stress
-        9. Return diverse cities from different countries and world regions.
-        10. The audience is the general public on a public-facing website.
+        ==================================================
+        MANDATORY: LIVE WEB SEARCH BEFORE WRITING JSON
+        ==================================================
+        You MUST run live web searches BEFORE producing JSON.
 
-        Public writing rules:
-        - title: short headline a non-expert understands immediately (max ~8 words).
-        - summary: one clear sentence — what is happening + why residents or visitors should care (max 140 characters).
-        - Use city names people recognize (e.g. "Kyiv" not internal admin names).
-        - Always include country so readers know where the city is.
+        For EACH city card:
+        1. Search: [city name] + [country/state] + [topic keywords] + "last 48 hours"
+        or today's date.
+        2. Open/read actual results — do NOT invent headlines or URLs.
+        3. Only write the card if you found a real signal within the LAST 48 HOURS
+        (or a developing-trend case that meets the exception rules below).
 
-        Technical rules:
-        - Return EXACTLY 12 city cards.
-        - Each city card = ONE city + ONE primary issue, conflict, risk, or trend.
-        - Each summary MUST be 140 characters or fewer (count strictly).
-        - confidence: integer 0–100 (source reliability and clarity).
-        - countryCode: valid ISO 3166-1 alpha-2 for the city's country (uppercase).
-        - region: broad world region (e.g. Europe, Middle East, East Asia, Sub-Saharan Africa).
+        ==================================================
+        sourceUrl RULES (CRITICAL — USERS CLICK THESE LINKS)
+        ==================================================
+        - sourceUrl MUST be exactly ONE HTTPS URL that opens a real page.
+        - COPY the URL character-for-character from your live search results.
+        - NEVER guess, fabricate, or reconstruct URL slugs from headlines or dates.
+        - NEVER build fake Reuters/BBC/AP URLs.
+        - NEVER use placeholder/example/training-memory URLs.
+        - The link MUST match the same story described in title and summary.
+
+        If you cannot find a verified article URL from search:
+        - Use a Google News search URL for that exact city story only, in this format:
+        https://news.google.com/search?q=CITY+KEYWORDS&hl=en-US&gl=US&ceid=US:en
+        - Replace CITY+KEYWORDS with URL-encoded city + 2–4 topic words
+        (spaces as +).
+        - Do NOT fabricate article paths.
+
+        Allowed article hosts (only if URL came from search):
+        reuters.com, apnews.com, bbc.com, bbc.co.uk, aljazeera.com,
+        theguardian.com, npr.org, france24.com, dw.com, un.org,
+        reliefweb.int, who.int, worldbank.org, local government portals,
+        major local newspapers, transportation authorities, and emergency agencies.
+
+        ==================================================
+        LIVE FEED RECENCY (MANDATORY)
+        ==================================================
+        This feed is presented to users as LIVE urban intelligence.
+        Treat recency as a hard rule.
+
+        PRIMARY WINDOW — LAST 48 HOURS:
+        - Every city card MUST be anchored to at least one credible development
+        from the LAST 48 HOURS (relative to current UTC datetime).
+        - Prefer the most recent reporting within that window.
+        - headline and subHeadline MUST describe the feed as live coverage
+        from the last 48 hours.
+
+        OLDER THAN 48 HOURS — STRICT EXCEPTION ONLY:
+        - Do NOT include standalone stories older than 48 hours.
+        - You may reference older context ONLY when ALL are true:
+        1. The situation is an actively DEVELOPING urban trend.
+        2. The older context is NECESSARY to explain the emerging pattern.
+        3. The card still includes a clear development from the LAST 48 HOURS.
+        - The title and summary must lead with the latest development.
+        - If no last-48-hours hook exists, omit the city.
+
+        ==================================================
+        ANALYTICAL TASK
+        ==================================================
+        1. Identify cities currently trending in credible global/local news
+        within the recency rules above.
+        2. Generate concise, public-friendly urban intelligence cards
+        for a homepage UI.
+        3. Keep tone neutral, factual, concise, and globally understandable.
+        4. Avoid propaganda, political bias, or speculative claims.
+        5. Include a balanced mix of:
+        - urban governance
+        - infrastructure
+        - transportation
+        - economy
+        - climate/weather
+        - public safety
+        - migration
+        - technology
+        - health
+        - utilities/services
+        - housing/development
+        6. Return diverse cities from different countries/regions.
+        7. Output is for public-facing urban intelligence dashboards.
+
+        ==================================================
+        FIELD RULES
+        ==================================================
+        - Return EXACTLY the requested number of cities (between 2 and 8).
+        - Each city card = ONE primary urban risk or trend only.
+        - Each summary MUST be 140 characters or fewer (strict limit).
+        - confidence: integer 0–100.
+        - cityCode should use a short uppercase city identifier if available,
+        otherwise use airport/city shorthand.
+        - countryCode: valid ISO 3166-1 alpha-2 (uppercase).
         - icon must match category.
-        - color reflects urgency (low=green, medium=yellow, high=orange, critical=red, stable/watch trend=blue).
-        - sourceUrl: exactly ONE valid HTTPS URL to a credible news article about that city.
-        - Do NOT mention news outlets, "according to", citations, or sources in city, title, or summary.
-        - updatedAt: current UTC datetime ISO-8601.
-        - Do not repeat the same city twice.
-        - Do not include markdown or text outside JSON.
+        - color reflects urgency:
+        low=green, medium=yellow, high=orange, critical=red,
+        stable/watch=blue.
+        - Do NOT mention sources/outlets in title or summary.
+        - updatedAt: current UTC ISO-8601 datetime.
+        - No duplicate cities.
+        - JSON only — no markdown outside JSON.
 
-        JSON Response Format:
+        ==================================================
+        JSON RESPONSE FORMAT
+        ==================================================
 
         {{
-            "updatedAt": "2026-05-25T12:00:00Z",
-            "headline": "Cities in the Spotlight",
-            "subHeadline": "Twelve cities making headlines for issues, risks, and trends that matter to everyday life.",
+            "updatedAt": "2026-05-26T12:00:00Z",
+            "headline": "Live Urban Issues & Emerging Trends",
+            "subHeadline": "Live city-level signals from the last 48 hours across infrastructure, governance, mobility, climate, economy, and society.",
             "cities": [
                 {{
-                    "city": "Kyiv",
-                    "country": "Ukraine",
-                    "countryCode": "UA",
-                    "region": "Europe",
-                    "type": "risk",
-                    "title": "Overnight Air Alerts",
-                    "summary": "Repeated air-raid warnings disrupt sleep and daily routines across the capital.",
-                    "category": "Security",
-                    "status": "Active",
-                    "urgency": "high",
-                    "confidence": 82,
-                    "icon": "security",
-                    "color": "orange",
-                    "sourceUrl": "https://www.reuters.com/world/europe/example-article"
+                    "city": "New York City",
+                    "cityCode": "NYC",
+                    "state": "New York",
+                    "country": "United States",                    
+                    "region": "North America",
+                    "type": "trend",
+                    "title": "Subway Upgrade Program Expands",
+                    "summary": "Transit agencies accelerated signaling and commuter infrastructure modernization projects.",
+                    "category": "Mobility",
+                    "status": "Rising",
+                    "urgency": "medium",
+                    "confidence": 87,
+                    "icon": "transport",
+                    "color": "yellow",
+                    "sourceUrl": "https://news.google.com/search?q=New+York+City+subway+infrastructure+upgrade&hl=en-US&gl=US&ceid=US:en"
                 }}
             ]
         }}
 
-        Status values (use exactly):
+        ==================================================
+        STATUS VALUES (USE EXACTLY)
+        ==================================================
         - Rising
         - Active
         - Watch
         - Stable
         - Critical
 
-        Urgency values (use exactly, lowercase):
+        ==================================================
+        URGENCY VALUES (USE EXACTLY, LOWERCASE)
+        ==================================================
         - low
         - medium
         - high
         - critical
 
-        Category values (use exactly):
+        ==================================================
+        CATEGORY VALUES (USE EXACTLY)
+        ==================================================
         - Governance
-        - Conflict
+        - Infrastructure
+        - Mobility
         - Economy
         - Climate
         - Security
@@ -1812,19 +1881,40 @@ class VerdianPromptTemplates:
         - Society
         - Technology
         - Health
+        - Housing
+        - Utilities
 
-        Type values (use exactly, lowercase):
+        ==================================================
+        TYPE VALUES (USE EXACTLY, LOWERCASE)
+        ==================================================
         - risk
         - trend
 
-        Color values (use exactly, lowercase):
+        ==================================================
+        COLOR VALUES (USE EXACTLY, LOWERCASE)
+        ==================================================
         - green
         - yellow
         - orange
         - red
         - blue
 
+        ==================================================
+        ICON VALUES SUGGESTIONS
+        ==================================================
+        - governance
+        - infrastructure
+        - transport
+        - economy
+        - climate
+        - security
+        - migration
+        - society
+        - technology
+        - health
+        - housing
+        - utilities
+
         {VerdianPromptTemplates._OUTPUT_STYLE}
         {VerdianPromptTemplates._JSON_RULES}
         """
-    

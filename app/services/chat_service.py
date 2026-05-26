@@ -2,18 +2,21 @@
 #  chat_service.py  (refactored)                                         #
 # =========================================================================== #
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import re
-from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
-from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional
+
 from pydantic import ValidationError
+from requests.compat import urlparse
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.city_prompt import VerdianPromptTemplates
 from app.services.common.pillar_prompts import PillarPrompts
+from app.services.common.url_verifier import ensure_live_source_url
+from app.services.common.url_verifier import ensure_live_source_url_pillars 
 from app.services.core.repository import DatabaseRepository
 from app.services.rag_query_service import rag_query_service
+from app.view_models.PillarLiveSignalsResult import PillarLiveSignalsResult
 from app.view_models.EmergingTrendsResult import EmergingTrendsResult
 
 logger = logging.getLogger(__name__)
@@ -228,13 +231,13 @@ class ChatService:
         )
 
         return answer
-        
+    
     async def get_emerging_trends_and_issues(
         self,
-        city_count: int = 12,
+        city_count: int = 8,
     ) -> Dict[str, Any]:
         try:
-            city_count = 12
+            city_count = max(4, min(8, city_count))
 
             ai_result = await rag_query_service.emerging_trends_and_issues(
                 city_count=city_count
@@ -250,6 +253,7 @@ class ChatService:
                 ai_result["data"],
                 city_count=city_count,
             )
+            normalized = await self._verify_emerging_trends_urls(normalized)
             validated = EmergingTrendsResult.model_validate(normalized)
 
             return {
@@ -312,13 +316,10 @@ class ChatService:
             "health": "health",
         }
 
-        cities_raw = data.get("cities") or data.get("countries") or []
+        cities_raw = data.get("cities") or []
         normalized_cities: List[Dict[str, Any]] = []
-        seen_cities: set[str] = set()
 
-        for item in cities_raw:
-            if len(normalized_cities) >= city_count:
-                break
+        for item in cities_raw[:city_count]:
             if not isinstance(item, dict):
                 continue
 
@@ -341,8 +342,8 @@ class ChatService:
             color = str(item.get("color", "yellow")).strip().lower()
 
             summary = " ".join(str(item.get("summary", "")).split())
-            if len(summary) > 140:
-                summary = summary[:137].rstrip() + "..."
+            if len(summary) > 200:
+                summary = summary[:180].rstrip() + "..."
 
             confidence = item.get("confidence", 70)
             try:
@@ -360,22 +361,11 @@ class ChatService:
             )
             summary = ChatService._strip_source_mentions(summary)
 
-            city_name = str(
-                item.get("city") or item.get("cityName") or ""
-            ).strip()
-            if not city_name:
-                continue
-
-            city_key = city_name.lower()
-            if city_key in seen_cities:
-                continue
-            seen_cities.add(city_key)
-
             normalized_cities.append(
                 {
-                    "city": city_name,
-                    "country": str(item.get("country", "")).strip(),
-                    "countryCode": str(item.get("countryCode", "")).strip().upper()[:2],
+                    "city": str(item.get("city", "")).strip(),
+                    "cityCode": str(item.get("cityCode", "")).strip().upper()[:2],
+                    "country": str(item.get("country", "")).strip(), 
                     "region": str(item.get("region", "")).strip(),
                     "type": card_type if card_type in ("risk", "trend") else "risk",
                     "title": title,
@@ -390,10 +380,8 @@ class ChatService:
                 }
             )
 
-        if len(normalized_cities) < city_count:
-            raise ValueError(
-                f"Insufficient city cards in LLM response (got {len(normalized_cities)}, need {city_count})"
-            )
+        if len(normalized_cities) < 4:
+            raise ValueError("Insufficient city cards in LLM response")
 
         updated_at = data.get("updatedAt")
         if not updated_at:
@@ -401,17 +389,44 @@ class ChatService:
 
         return {
             "updatedAt": str(updated_at),
-            "headline": str(
-                data.get("headline", "Cities in the Spotlight")
-            ).strip(),
+            "headline": str(data.get("headline", "Emerging Issues & Trends")).strip(),
             "subHeadline": str(
                 data.get(
                     "subHeadline",
-                    "Twelve cities making headlines for issues, risks, and trends that matter to everyday life.",
+                    "Live global signals from the last 48 hours across governance, security, economy, and society.",
                 )
             ).strip(),
-            "cities": normalized_cities[:city_count],
+            "cities": normalized_cities,
         }
+
+    @staticmethod
+    async def _verify_emerging_trends_urls(data: Dict[str, Any]) -> Dict[str, Any]:
+        cities = data.get("cities") or []
+        verified: List[Dict[str, Any]] = []
+
+        for item in cities:
+            if not isinstance(item, dict):
+                continue
+            city = str(item.get("city", "")).strip()
+            title = str(item.get("title", "")).strip()
+            country = str(item.get("country", "")).strip() 
+            url = str(item.get("sourceUrl", "")).strip()
+            if not url:
+                continue
+
+            item["sourceUrl"] = await ensure_live_source_url(
+                url=url,
+                city=city,
+                country=country,
+                title=title,
+            )
+            verified.append(item)
+
+        if len(verified) < 4:
+            raise ValueError("Insufficient city cards after URL verification")
+
+        data["cities"] = verified
+        return data
 
     @staticmethod
     def _normalize_source_url(item: Dict[str, Any]) -> str:
@@ -437,6 +452,143 @@ class ChatService:
             text.strip(),
             flags=re.IGNORECASE,
         ).strip()
+    
+
+    async def get_pillar_live_signals(self) -> Dict[str, Any]:
+        try:
+            ai_result = await rag_query_service.pillar_live_signals()
+
+            if not ai_result.get("success"):
+                return {
+                    "success": False,
+                    "message": "Failed to generate pillar live signals",
+                }
+
+            normalized = self._normalize_pillar_live_signals_payload(ai_result["data"])
+            normalized = await self._verify_pillar_live_signals_urls(normalized)
+            validated = PillarLiveSignalsResult.model_validate(normalized)
+
+            return {
+                "success": True,
+                "message": "Pillar live signals generated successfully",
+                "result": validated.model_dump(),
+            }
+
+        except ValidationError as exc:
+            logger.warning(
+                "Pillar live signals response failed validation: %s",
+                exc,
+            )
+            return {
+                "success": False,
+                "message": "Pillar live signals response did not meet quality checks",
+            }
+
+        except Exception as exc:
+            logger.exception("get_pillar_live_signals failed")
+
+            return {
+                "success": False,
+                "message": str(exc),
+            }
+
+    @staticmethod
+    def _normalize_pillar_live_signals_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+        status_map = {
+            "rising": "Rising",
+            "active": "Active",
+            "watch": "Watch",
+            "stable": "Stable",
+            "critical": "Critical",
+        }       
+        by_id: Dict[int, Dict[str, Any]] = {}
+
+        for item in data.get("pillars") or []:
+            if not isinstance(item, dict):
+                continue
+
+            try:
+                pillar_id = int(item.get("pillarId", item.get("pillar_id", 0)))
+            except (TypeError, ValueError):
+                continue
+
+            if pillar_id < 1 or pillar_id > 14:
+                continue
+
+            status = str(item.get("status", "Watch")).strip()
+            status = status_map.get(status.lower(), status)
+            if status not in status_map.values():
+                status = "Watch"
+
+            urgency = str(item.get("urgency", "medium")).strip().lower()
+            color = str(item.get("color", "yellow")).strip().lower()
+            card_type = str(item.get("type", "risk")).strip().lower()
+
+            title = ChatService._strip_source_mentions(str(item.get("title", "")).strip())
+            summary = ChatService._strip_source_mentions(
+                " ".join(str(item.get("summary", "")).split())[:100]
+            )
+            source_url = ChatService._normalize_source_url(item)
+
+            if not title or not summary or not source_url:
+                continue
+
+            by_id[pillar_id] = {
+                "pillarId": pillar_id,
+                "type": card_type if card_type in ("risk", "trend") else "risk",
+                "title": title,
+                "summary": summary,
+                "status": status,
+                "urgency": urgency if urgency in ("low", "medium", "high", "critical") else "medium",
+                "color": color if color in ("green", "yellow", "orange", "red", "blue") else "yellow",
+                "sourceUrl": source_url,
+            }
+
+        if len(by_id) < 14:
+            raise ValueError(
+                f"Expected 14 pillar cards, received {len(by_id)} valid entries"
+            )
+
+        pillars = [by_id[pid] for pid in sorted(by_id.keys())]
+
+        updated_at = data.get("updatedAt")
+        if not updated_at:
+            updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        return {
+            "updatedAt": str(updated_at),
+            "headline": str(data.get("headline", "Live Pillar Signals")).strip(),
+            "subHeadline": str(
+                data.get(
+                    "subHeadline",
+                    "Global peace-enabler pillar watch from the last 48 hours.",
+                )
+            ).strip(),
+            "pillars": pillars,
+        }
+
+    @staticmethod
+    async def _verify_pillar_live_signals_urls(data: Dict[str, Any]) -> Dict[str, Any]:
+        pillar_names = PillarPrompts.get_all_pillar_names()
+        verified: List[Dict[str, Any]] = []
+
+        for item in data.get("pillars") or []:
+            if not isinstance(item, dict):
+                continue
+
+            pillar_id = int(item["pillarId"])
+            pillar_name = pillar_names.get(pillar_id, f"Pillar {pillar_id}")
+            title = str(item.get("title", "")).strip()
+            url = str(item.get("sourceUrl", "")).strip()
+
+            item["sourceUrl"] = await ensure_live_source_url_pillars(url, pillar_name, title)
+            verified.append(item)
+
+        if len(verified) < 14:
+            raise ValueError("Insufficient pillar cards after URL verification")
+
+        data["pillars"] = verified
+        return data
 
 
 chat_service = ChatService()
