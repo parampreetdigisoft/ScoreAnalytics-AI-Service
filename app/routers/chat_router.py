@@ -3,6 +3,7 @@ Score analysis Router - API endpoints with database exception logging
 Fire-and-forget pattern for long-running analysis tasks
 """
 import logging
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from app.view_models.ChatRequest import ChatCityExecutiveSlidesRequest, ChatCityExecutiveSlidesResponse, ChatCityRequest, ChatCrossComparisionRequest,ChatGlobalRequest, ChatRequest
 from app.view_models.AnalysisRequest import ChatResponse
@@ -166,9 +167,17 @@ async def ask_city_executive_slides(
 async def get_emerging_trends_and_issues(
     cityCount: int = Query(
         default=8,
-        ge=4,
-        le=8,
-        description="Number of city intelligence cards to return (4–8).",
+        ge=1,
+        le=250,
+        description="Number of GDELT articles to fetch (maxrecords); one card per article.",
+    ),
+    queryVariant: Optional[int] = Query(
+        default=None,
+        ge=0,
+        description=(
+            "GDELT keyword variant index (0–5). Omit to auto-rotate every 5 minutes. "
+            "Each variant uses a different 2–3 keyword OR group, or all six terms."
+        ),
     ),
 ):
     """
@@ -178,7 +187,8 @@ async def get_emerging_trends_and_issues(
     """
     try:
         response = await chat_service.get_emerging_trends_and_issues(
-            city_count=cityCount
+            city_count=cityCount,
+            query_variant=queryVariant,
         )
 
         if not response.get("success"):

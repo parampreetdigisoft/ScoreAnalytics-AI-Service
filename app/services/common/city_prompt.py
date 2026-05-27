@@ -3,7 +3,9 @@ Verdian Prompt Templates — Static class holding ALL system prompts.
 Import this wherever a prompt is needed; never inline prompts in service files.
 """
 
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Sequence, Tuple
+from urllib.parse import quote
 
 
 from app.services.common.pillar_prompts import PillarPrompts
@@ -1716,205 +1718,206 @@ class VerdianPromptTemplates:
 
         {VerdianPromptTemplates._JSON_RULES}
     """
-
+   
     @staticmethod
     def emerging_trend_risk_prompt() -> str:
+        """
+        System prompt: map GDELT article list to public emerging-trends city cards.
+        Articles are supplied in the user message; do not browse or invent URLs.
+        """
         return f"""
         You are an AI intelligence engine for the public-facing Verdian Urban Index (VUI) platform.
 
         ==================================================
-        MANDATORY: LIVE WEB SEARCH BEFORE WRITING JSON
+        DATA SOURCE (MANDATORY)
         ==================================================
-        You MUST run live web searches BEFORE producing JSON.
+        You will receive:
+        - A target city context
+        - A JSON list of news articles from the GDELT Doc API (last 24 hours)
 
-        For EACH city card:
-        1. Search: [city name] + [country/state] + [topic keywords] + "last 48 hours"
-        or today's date.
-        2. Open/read actual results — do NOT invent headlines or URLs.
-        3. Only write the card if you found a real signal within the LAST 48 HOURS
-        (or a developing-trend case that meets the exception rules below).
+        You MUST produce exactly one city intelligence card for EVERY article in that list
+        (no skipping, no extras).
 
-        ==================================================
-        sourceUrl RULES (CRITICAL — USERS CLICK THESE LINKS)
-        ==================================================
-        - sourceUrl MUST be exactly ONE HTTPS URL that opens a real page.
-        - COPY the URL character-for-character from your live search results.
-        - NEVER guess, fabricate, or reconstruct URL slugs from headlines or dates.
-        - NEVER build fake Reuters/BBC/AP URLs.
-        - NEVER use placeholder/example/training-memory URLs.
-        - The link MUST match the same story described in title and summary.
-
-        If you cannot find a verified article URL from search:
-        - Use a Google News search URL for that exact city story only, in this format:
-        https://news.google.com/search?q=CITY+KEYWORDS&hl=en-US&gl=US&ceid=US:en
-        - Replace CITY+KEYWORDS with URL-encoded city + 2–4 topic words
-        (spaces as +).
-        - Do NOT fabricate article paths.
-
-        Allowed article hosts (only if URL came from search):
-        reuters.com, apnews.com, bbc.com, bbc.co.uk, aljazeera.com,
-        theguardian.com, npr.org, france24.com, dw.com, un.org,
-        reliefweb.int, who.int, worldbank.org, local government portals,
-        major local newspapers, transportation authorities, and emergency agencies.
-
-        ==================================================
-        LIVE FEED RECENCY (MANDATORY)
-        ==================================================
-        This feed is presented to users as LIVE urban intelligence.
-        Treat recency as a hard rule.
-
-        PRIMARY WINDOW — LAST 48 HOURS:
-        - Every city card MUST be anchored to at least one credible development
-        from the LAST 48 HOURS (relative to current UTC datetime).
-        - Prefer the most recent reporting within that window.
-        - headline and subHeadline MUST describe the feed as live coverage
-        from the last 48 hours.
-
-        OLDER THAN 48 HOURS — STRICT EXCEPTION ONLY:
-        - Do NOT include standalone stories older than 48 hours.
-        - You may reference older context ONLY when ALL are true:
-        1. The situation is an actively DEVELOPING urban trend.
-        2. The older context is NECESSARY to explain the emerging pattern.
-        3. The card still includes a clear development from the LAST 48 HOURS.
-        - The title and summary must lead with the latest development.
-        - If no last-48-hours hook exists, omit the city.
+        CRITICAL:
+        - Use ONLY the articles provided in the user message. Do not browse the web.
+        - Do not invent, modify, or guess URLs or headlines.
+        - For each card:
+        - sourceUrl MUST equal the selected article's "url" field EXACTLY
+            (character-for-character).
+        - title MUST equal the selected article's "title" field EXACTLY.
+        - sourceUrl must be a direct article permalink
+        (not Google News, not /search or listing pages).
+        - Use article "sourcecountry" as a hint for country/region when inferring metadata.
+        - Use the provided city context to determine local relevance and urban impact.
 
         ==================================================
         ANALYTICAL TASK
         ==================================================
-        1. Identify cities currently trending in credible global/local news
-        within the recency rules above.
-        2. Generate concise, public-friendly urban intelligence cards
-        for a homepage UI.
-        3. Keep tone neutral, factual, concise, and globally understandable.
-        4. Avoid propaganda, political bias, or speculative claims.
-        5. Include a balanced mix of:
-        - urban governance
+        1. Generate concise, public-friendly urban intelligence cards for a homepage UI.
+        2. Keep tone neutral, factual, concise, and globally understandable.
+        3. Each card = ONE primary urban risk, issue, opportunity, or trend aligned with the article headline.
+        4. Preserve the article order from the input list when possible.
+        5. Do NOT mention news outlets or "according to" in title or summary.
+        6. Focus on how the event impacts:
+        - cities
+        - urban systems
         - infrastructure
-        - transportation
+        - governance
         - economy
-        - climate/weather
-        - public safety
-        - migration
+        - mobility
+        - safety
+        - climate resilience
         - technology
-        - health
-        - utilities/services
-        - housing/development
-        6. Return diverse cities from different countries/regions.
-        7. Output is for public-facing urban intelligence dashboards.
+        - quality of life
 
-        ==================================================
-        FIELD RULES
-        ==================================================
-        - Return EXACTLY the requested number of cities (between 2 and 8).
-        - Each city card = ONE primary urban risk or trend only.
-        - Each summary MUST be 140 characters or fewer (strict limit).
-        - confidence: integer 0–100.
-        - cityCode should use a short uppercase city identifier if available,
-        otherwise use airport/city shorthand.
+        Field rules:
+        - cities[] length MUST equal the number of articles in the user message.
+        - summary: 1–2 sentences, maximum 200 characters.
+        - confidence: integer 0–100
+        (how clearly the article supports the classification).
         - countryCode: valid ISO 3166-1 alpha-2 (uppercase).
         - icon must match category.
-        - color reflects urgency:
-        low=green, medium=yellow, high=orange, critical=red,
-        stable/watch=blue.
-        - Do NOT mention sources/outlets in title or summary.
-        - updatedAt: current UTC ISO-8601 datetime.
-        - No duplicate cities.
+        - color reflects urgency
+        (low=green, medium=yellow, high=orange, critical=red, stable/watch=blue).
+        - updatedAt: current UTC ISO-8601 datetime from the user message context.
+        - No duplicate sourceUrl values.
         - JSON only — no markdown outside JSON.
 
-        ==================================================
-        JSON RESPONSE FORMAT
-        ==================================================
+        JSON Response Format:
 
         {{
-            "updatedAt": "2026-05-26T12:00:00Z",
-            "headline": "Live Urban Issues & Emerging Trends",
-            "subHeadline": "Live city-level signals from the last 48 hours across infrastructure, governance, mobility, climate, economy, and society.",
+            "updatedAt": "2026-05-27T12:00:00Z",
+            "headline": "Live Emerging Urban Issues & Trends",
+            "subHeadline": "Live urban signals from the last 24 hours across infrastructure, governance, economy, climate, and society.",
             "cities": [
                 {{
-                    "city": "New York City",
-                    "cityCode": "NYC",
-                    "state": "New York",
-                    "country": "United States",                    
-                    "region": "North America",
-                    "type": "trend",
-                    "title": "Subway Upgrade Program Expands",
-                    "summary": "Transit agencies accelerated signaling and commuter infrastructure modernization projects.",
-                    "category": "Mobility",
-                    "status": "Rising",
-                    "urgency": "medium",
-                    "confidence": 87,
-                    "icon": "transport",
-                    "color": "yellow",
-                    "sourceUrl": "https://news.google.com/search?q=New+York+City+subway+infrastructure+upgrade&hl=en-US&gl=US&ceid=US:en"
+                    "city": "London",
+                    "country": "United Kingdom",
+                    "countryCode": "USA",
+                    "cityCode":"LON"
+                    "region": "Europe",
+                    "type": "risk",
+                    "title": "Exact headline copied from GDELT article title field",
+                    "summary": "Concise public summary of the urban impact in under 200 characters.",
+                    "category": "Infrastructure",
+                    "status": "Active",
+                    "urgency": "high",
+                    "confidence": 75,
+                    "icon": "infrastructure",
+                    "color": "orange",
+                    "sourceUrl": "https://example.com/exact-url-from-gdelt-article-url-field"
                 }}
             ]
         }}
 
-        ==================================================
-        STATUS VALUES (USE EXACTLY)
-        ==================================================
+        Status values (use exactly):
         - Rising
         - Active
         - Watch
         - Stable
         - Critical
 
-        ==================================================
-        URGENCY VALUES (USE EXACTLY, LOWERCASE)
-        ==================================================
+        Urgency values (use exactly, lowercase):
         - low
         - medium
         - high
         - critical
 
-        ==================================================
-        CATEGORY VALUES (USE EXACTLY)
-        ==================================================
+        Category values (use exactly):
         - Governance
         - Infrastructure
-        - Mobility
         - Economy
         - Climate
         - Security
-        - Migration
+        - Mobility
         - Society
         - Technology
         - Health
         - Housing
-        - Utilities
+        - Environment
 
-        ==================================================
-        TYPE VALUES (USE EXACTLY, LOWERCASE)
-        ==================================================
+        Type values (use exactly, lowercase):
         - risk
         - trend
 
-        ==================================================
-        COLOR VALUES (USE EXACTLY, LOWERCASE)
-        ==================================================
+        Color values (use exactly, lowercase):
         - green
         - yellow
         - orange
         - red
         - blue
 
-        ==================================================
-        ICON VALUES SUGGESTIONS
-        ==================================================
-        - governance
-        - infrastructure
-        - transport
-        - economy
-        - climate
-        - security
-        - migration
-        - society
-        - technology
-        - health
-        - housing
-        - utilities
-
         {VerdianPromptTemplates._OUTPUT_STYLE}
         {VerdianPromptTemplates._JSON_RULES}
         """
+    
+
+    @staticmethod
+    def emerging_trends_and_issues_user_prompt() -> str:
+        """User message template for GDELT-backed emerging trends feed."""
+        return """
+        Current UTC datetime (now):
+        {current_date}
+
+        GDELT articles (use ONLY these — do not browse the web; one card per article):
+        {articles_json}
+
+        For each article:
+        - Infer country, countryCode, region, category, status, urgency, color, icon, city, cityCode and summary
+          from its title and sourcecountry field.
+        - Choose category/status/urgency/color consistently with the headline and story type.
+
+        Now return the JSON output.
+        """.strip()
+    
+    GDELT_EMERGING_KEYWORD_VARIANTS: Tuple[Tuple[str, ...], ...] = (
+        ("war", "conflict"),
+        ("terrorism", "protest"),
+        ("sanctions", "military"),
+        ("war", "conflict", "terrorism"),
+        ("protest", "sanctions", "military"),
+        ("war", "conflict", "terrorism", "protest", "sanctions", "military"),
+    )
+
+    @staticmethod
+    def gdelt_emerging_variant_count() -> int:
+        return len(VerdianPromptTemplates.GDELT_EMERGING_KEYWORD_VARIANTS)
+
+    @staticmethod
+    def pick_gdelt_emerging_variant_index() -> int:
+        """Rotate variant every 5 minutes (UTC) so repeated calls are not identical."""
+        bucket = int(datetime.now(timezone.utc).timestamp()) // 300
+        return bucket % VerdianPromptTemplates.gdelt_emerging_variant_count()
+
+    @staticmethod
+    def _gdelt_emerging_query_string(keywords: Sequence[str]) -> str:
+        inner = " OR ".join(k.strip() for k in keywords if k and k.strip())
+        return f"({inner}) sourcelang:english"
+    
+    @staticmethod
+    def emerging_trends_gdelt_url(
+        max_records: int,
+        variant_index: Optional[int] = None,
+    ) -> Tuple[str, int]:
+        """
+        Build GDELT Doc API URL (last 24h, English).
+
+        Returns (url, variant_index_used). Each variant uses a different keyword subset.
+        """
+        variants = VerdianPromptTemplates.GDELT_EMERGING_KEYWORD_VARIANTS
+        n_variants = len(variants)
+        if variant_index is None:
+            idx = VerdianPromptTemplates.pick_gdelt_emerging_variant_index()
+        else:
+            idx = int(variant_index) % n_variants
+
+        n = max(1, min(250, int(max_records)))
+        query = VerdianPromptTemplates._gdelt_emerging_query_string(variants[idx])
+        encoded_query = quote(query, safe="")
+
+        url = (
+            "https://api.gdeltproject.org/api/v2/doc/doc"
+            f"?query={encoded_query}"
+            f"&mode=ArtList&maxrecords={n}&format=json&timespan=24h&sort=DateDesc"
+        )
+        return url, idx

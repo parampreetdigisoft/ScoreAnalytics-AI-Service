@@ -34,17 +34,17 @@ TrendIcon = Literal[
 
 
 class EmergingTrendCityCard(BaseModel):
-    city: str = Field(..., min_length=2, max_length=80)
-    country: str = Field(..., min_length=2, max_length=80)
-    cityCode: str = Field(..., min_length=2, max_length=2)
+    city: str = Field(..., min_length=2, max_length=200)
+    country: str = Field(..., min_length=2, max_length=200)
+    cityCode: str = Field(..., min_length=2, max_length=4)
     region: str = Field(..., min_length=2, max_length=80)
     type: TrendType
-    title: str = Field(..., min_length=3, max_length=80)
+    title: str = Field(..., min_length=3, max_length=200)
     summary: str = Field(..., min_length=10, max_length=500)
     category: TrendCategory
     status: TrendStatus
     urgency: TrendUrgency
-    confidence: int = Field(..., ge=0, le=100)
+    confidence: int = Field(..., ge=0, le=200)
     icon: TrendIcon
     color: TrendColor
     sourceUrl: str = Field(..., min_length=12, max_length=2048)
@@ -86,7 +86,7 @@ class EmergingTrendsResult(BaseModel):
     updatedAt: str
     headline: str = Field(..., min_length=3, max_length=120)
     subHeadline: str = Field(..., min_length=10, max_length=200)
-    cities: List[EmergingTrendCityCard] = Field(..., min_length=4, max_length=8)
+    cities: List[EmergingTrendCityCard] = Field(..., min_length=1, max_length=250)
 
     @field_validator("updatedAt")
     @classmethod

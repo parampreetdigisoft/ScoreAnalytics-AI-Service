@@ -235,12 +235,14 @@ class ChatService:
     async def get_emerging_trends_and_issues(
         self,
         city_count: int = 8,
+        query_variant: Optional[int] = None,
     ) -> Dict[str, Any]:
         try:
-            city_count = max(4, min(8, city_count))
+            max_records = max(1, min(250, city_count))
 
             ai_result = await rag_query_service.emerging_trends_and_issues(
-                city_count=city_count
+                city_count=max_records,
+                query_variant=query_variant,
             )
 
             if not ai_result.get("success"):
@@ -249,11 +251,7 @@ class ChatService:
                     "message": "Failed to generate emerging trends and issues",
                 }
 
-            normalized = self._normalize_emerging_trends_payload(
-                ai_result["data"],
-                city_count=city_count,
-            )
-            normalized = await self._verify_emerging_trends_urls(normalized)
+            normalized = self._normalize_emerging_trends_payload(ai_result["data"])            
             validated = EmergingTrendsResult.model_validate(normalized)
 
             return {
@@ -280,12 +278,8 @@ class ChatService:
                 "message": str(exc),
             }
 
-
     @staticmethod
-    def _normalize_emerging_trends_payload(
-        data: Dict[str, Any],
-        city_count: int,
-    ) -> Dict[str, Any]:
+    def _normalize_emerging_trends_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         category_map = {
             "governance": "Governance",
             "conflict": "Conflict",
@@ -319,7 +313,7 @@ class ChatService:
         cities_raw = data.get("cities") or []
         normalized_cities: List[Dict[str, Any]] = []
 
-        for item in cities_raw[:city_count]:
+        for item in cities_raw:
             if not isinstance(item, dict):
                 continue
 
@@ -380,7 +374,7 @@ class ChatService:
                 }
             )
 
-        if len(normalized_cities) < 4:
+        if not normalized_cities:
             raise ValueError("Insufficient city cards in LLM response")
 
         updated_at = data.get("updatedAt")
@@ -397,36 +391,7 @@ class ChatService:
                 )
             ).strip(),
             "cities": normalized_cities,
-        }
-
-    @staticmethod
-    async def _verify_emerging_trends_urls(data: Dict[str, Any]) -> Dict[str, Any]:
-        cities = data.get("cities") or []
-        verified: List[Dict[str, Any]] = []
-
-        for item in cities:
-            if not isinstance(item, dict):
-                continue
-            city = str(item.get("city", "")).strip()
-            title = str(item.get("title", "")).strip()
-            country = str(item.get("country", "")).strip() 
-            url = str(item.get("sourceUrl", "")).strip()
-            if not url:
-                continue
-
-            item["sourceUrl"] = await ensure_live_source_url(
-                url=url,
-                city=city,
-                country=country,
-                title=title,
-            )
-            verified.append(item)
-
-        if len(verified) < 4:
-            raise ValueError("Insufficient city cards after URL verification")
-
-        data["cities"] = verified
-        return data
+        } 
 
     @staticmethod
     def _normalize_source_url(item: Dict[str, Any]) -> str:

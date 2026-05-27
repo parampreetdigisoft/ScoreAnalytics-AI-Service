@@ -21,6 +21,7 @@ import json
 from chromadb.utils import embedding_functions
 from typing import List, Dict, Any, Optional
 from app.services.common.city_prompt import VerdianPromptTemplates
+from app.services.common.gdelt_client import fetch_doc_articles
 from app.services.common.llm_base_service import LLMBaseService
 from app.services.common.pillar_prompts import PillarPrompts
 from app.services.core.repository import DatabaseRepository
@@ -553,51 +554,78 @@ class RAGQueryService:
     async def emerging_trends_and_issues(
         self,
         city_count: int = 8,
+        query_variant: Optional[int] = None,
     ) -> Dict[str, Any]:
         try:
-            city_count = max(4, min(8, city_count))
-
-            system_prompt = VerdianPromptTemplates.emerging_trend_risk_prompt()
-
-            user_template = """
-            Generate the public LIVE homepage emerging issues and trends feed.
-
-            Current UTC datetime (now):
-            {current_date}
-
-            Live coverage window start (48 hours before now):
-            {recency_cutoff}
-
-            Required number of country cards:
-            {city_count}
-
-            Recency enforcement:
-            - Default: every card must cite a development published within the last 48 hours.
-            - Older context only for actively developing trends, only if needed to show the
-              pattern emerging over time, and only together with a last-48-hours development.
-
-            Before writing JSON:
-            - Run live web search for each country using the 48-hour window.
-            - For each sourceUrl, use ONLY a URL returned by search (copied exactly),
-              OR a Google News search URL for that story if no article URL is verified.
-            - Never invent Reuters/BBC/AP article paths or slug patterns.
-            """
+            max_records = max(1, min(250, city_count))
 
             now_utc = datetime.now(timezone.utc)
+
+            # ---------------------------------------------------------
+            # Fetch articles from GDELT (last 24h, English; rotated query)
+            # ---------------------------------------------------------
+            articles_raw = await self._fetch_gdelt_emerging_articles(
+                max_records, query_variant=query_variant
+            )
+            # Only trust these fields from GDELT; LLM fills rest (country/region/code/etc).
+            articles: List[Dict[str, Any]] = []
+            for a in articles_raw[:max_records]:
+                if not isinstance(a, dict):
+                    continue
+                url = str(a.get("url", "")).strip()
+                title = str(a.get("title", "")).strip()
+                if not url.startswith(("http://", "https://")) or not title:
+                    continue
+
+                articles.append(
+                    {
+                        "url": url,
+                        "title": title,
+                        "seendate": str(a.get("seendate", "")).strip(),
+                        "domain": str(a.get("domain", "")).strip(),
+                        "language": str(a.get("language", "")).strip(),
+                        "sourcecountry": str(a.get("sourcecountry", "")).strip(),
+                        "socialimage": str(a.get("socialimage", "")).strip(),
+                    }
+                )
+
+            if not articles:
+                raise ValueError("Insufficient usable GDELT articles")
+
+            system_prompt = VerdianPromptTemplates.emerging_trend_risk_prompt()
+            user_template = VerdianPromptTemplates.emerging_trends_and_issues_user_prompt()
+
             raw = await self._llm_svc.invoke_chain(
                 system_prompt=system_prompt,
                 user_template=user_template,
                 variables={
                     "current_date": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "recency_cutoff": (now_utc - timedelta(hours=48)).strftime(
-                        "%Y-%m-%dT%H:%M:%SZ"
-                    ),
-                    "city_count": city_count,
+                    "articles_json": json.dumps(articles, ensure_ascii=False),
                 },
                 label="emerging-trends-and-issues",
             )
 
             analysis = json.loads(jrp.clean_json_response(raw))
+
+            # Guardrail: ensure cards only reference provided URLs and titles.
+            allowed_url_to_title = {a["url"]: a["title"] for a in articles if a.get("url")}
+            cards = analysis.get("cities") or []
+            if isinstance(cards, list):
+                cleaned_cards: List[Dict[str, Any]] = []
+                for c in cards:
+                    if not isinstance(c, dict):
+                        continue
+                    u = str(c.get("sourceUrl", "")).strip()
+                    t = str(c.get("title", "")).strip()
+                    if not u or u not in allowed_url_to_title:
+                        continue
+                    if allowed_url_to_title[u] != t:
+                        c["title"] = allowed_url_to_title[u]
+                    cleaned_cards.append(c)
+                analysis["cities"] = cleaned_cards
+
+            if not analysis.get("updatedAt"):
+                analysis["updatedAt"] = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             return {
                 "success": True,
@@ -659,4 +687,49 @@ class RAGQueryService:
                 "success": False,
                 "error": str(exc),
             }
+        
+    async def _fetch_gdelt_emerging_articles(
+        self,
+        max_records: int,
+        query_variant: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch GDELT articles (one variant per request, 5s throttle between calls).
+        Tries at most two variants if the first returns no articles.
+        """
+        variant_count = VerdianPromptTemplates.gdelt_emerging_variant_count()
+        start_idx = (
+            query_variant
+            if query_variant is not None
+            else VerdianPromptTemplates.pick_gdelt_emerging_variant_index()
+        ) % variant_count
+
+        last_error: Optional[Exception] = None
+        max_variant_tries = 2 if query_variant is None else 1
+
+        for attempt in range(max_variant_tries):
+            idx = (start_idx + attempt) % variant_count
+            gdelt_url, _ = VerdianPromptTemplates.emerging_trends_gdelt_url(
+                max_records, variant_index=idx
+            )
+            cache_key = f"emerging:{max_records}:{idx}"
+
+            try:
+                articles_raw = await fetch_doc_articles(gdelt_url, cache_key=cache_key)
+                if articles_raw:
+                    return articles_raw
+                logger.warning(
+                    "GDELT variant %s returned no articles",
+                    idx,
+                )
+            except Exception as exc:
+                last_error = exc
+                logger.warning("GDELT fetch failed for variant %s: %s", idx, exc)
+                if attempt + 1 >= max_variant_tries:
+                    raise
+
+        if last_error:
+            raise last_error
+        raise ValueError("GDELT returned no articles")
+
 rag_query_service = RAGQueryService()
